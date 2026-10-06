@@ -1,0 +1,23 @@
+# Nix / direnv
+.direnv/
+result
+result-*
+
+# Project-local tool homes (debug signing identity lives here; keep locally)
+.gradle-user-home/
+.gradle-user-home-agent/
+.android-user-home/
+
+# Gradle / Android build output
+.gradle/
+.kotlin/
+build/
+local.properties
+*.apk
+*.aab
+captures/
+
+# IDEs
+.idea/
+*.iml
+.vscode/

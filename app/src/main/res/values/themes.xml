@@ -1,0 +1,4 @@
+<resources>
+    <!-- Window theme only; app styling lives in Compose. -->
+    <style name="Theme.Streamer" parent="android:Theme.Material.NoActionBar" />
+</resources>
