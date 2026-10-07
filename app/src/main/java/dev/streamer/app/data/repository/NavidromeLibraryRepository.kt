@@ -2,6 +2,8 @@ package dev.streamer.app.data.repository
 
 import android.database.SQLException
 import dev.streamer.app.data.LibraryRepository
+import dev.streamer.app.data.SyncStatus
+import dev.streamer.app.data.SyncTarget
 import dev.streamer.app.data.UserMessages
 import dev.streamer.app.data.account.AccountRepository
 import dev.streamer.app.data.account.SessionState
@@ -42,8 +44,10 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
@@ -263,6 +267,9 @@ class NavidromeLibraryRepository(
         combine(attempted.map { "$acc:$key" in it }.distinctUntilChanged()) { value, done -> value to done }
             .transform { (value, done) -> if (done || !isIncomplete(value)) emit(value) }
 
+    /** Latest failure per "<account>:<key>"; cleared by a later success. */
+    private val errors = MutableStateFlow<Map<String, String>>(emptyMap())
+
     /** Starts a background refresh of [key] if it is older than [maxAge] and not already running. */
     private fun refresh(key: String, maxAge: Duration, sync: suspend (acc: String, auth: ServerAuth) -> Unit) {
         val current = accounts.currentAuth()
@@ -279,16 +286,7 @@ class NavidromeLibraryRepository(
             try {
                 val last = dao.syncedAt(account.id, key)
                 if (last != null && clock() - last < maxAge.inWholeMilliseconds) return@launch
-                retryTransient { sync(account.id, auth) }
-                dao.upsertSyncState(SyncStateEntity(account.id, key, clock()))
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: ApiError.Auth) {
-                accounts.reportAuthFailure(e)
-            } catch (e: ApiError) {
-                messages.post("Couldn't refresh from your server. ${e.message} Showing saved data.")
-            } catch (e: SQLException) {
-                // The account was removed (signed out) while this refresh was running.
+                runSync(account.id, auth, key, sync)?.let { messages.post("Couldn't refresh from your server. $it Showing saved data.") }
             } finally {
                 inFlight.remove(flightKey)
                 markAttempted(account.id, key)
@@ -296,8 +294,109 @@ class NavidromeLibraryRepository(
         }
     }
 
+    /** Runs one sync, recording success or failure. Returns the user message on failure. */
+    private suspend fun runSync(acc: String, auth: ServerAuth, key: String, sync: suspend (String, ServerAuth) -> Unit): String? {
+        val errorKey = "$acc:$key"
+        return try {
+            retryTransient { sync(acc, auth) }
+            dao.upsertSyncState(SyncStateEntity(acc, key, clock()))
+            errors.update { it - errorKey }
+            null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: ApiError) {
+            if (e is ApiError.Auth) accounts.reportAuthFailure(e)
+            val message = e.message ?: "Couldn't refresh."
+            errors.update { it + (errorKey to message) }
+            if (e is ApiError.Auth) null else message
+        } catch (e: SQLException) {
+            null // The account was removed (signed out) while this refresh was running.
+        }
+    }
+
+    private fun keysFor(target: SyncTarget): List<String> = when (target) {
+        SyncTarget.Home -> listOf(PLAYLISTS, NEWEST, STARRED)
+        SyncTarget.Playlists -> listOf(PLAYLISTS)
+        SyncTarget.Albums -> listOf(ALBUMS)
+        SyncTarget.Artists -> listOf(ARTISTS)
+        SyncTarget.Songs -> listOf(SONGS)
+        SyncTarget.Favourites -> listOf(STARRED)
+        is SyncTarget.Album -> listOf("album:${target.id}")
+        is SyncTarget.Artist -> listOf("artist:${target.id}")
+        is SyncTarget.Playlist -> listOf("playlist:${target.id}")
+    }
+
+    private fun syncFor(key: String): suspend (String, ServerAuth) -> Unit = when {
+        key == PLAYLISTS -> ::syncPlaylists
+        key == NEWEST -> ::syncNewest
+        key == ALBUMS -> ::syncAllAlbums
+        key == ARTISTS -> ::syncArtists
+        key == SONGS -> ::syncAllSongs
+        key == STARRED -> ::syncStarred
+        key.startsWith("album:") -> { acc, auth -> syncAlbum(acc, auth, key.removePrefix("album:")) }
+        key.startsWith("artist:") -> { acc, auth -> syncArtist(acc, auth, key.removePrefix("artist:")) }
+        key.startsWith("playlist:") -> { acc, auth -> syncPlaylist(acc, auth, key.removePrefix("playlist:")) }
+        else -> error("Unknown sync key $key")
+    }
+
+    override fun syncStatus(target: SyncTarget): Flow<SyncStatus> {
+        val keys = keysFor(target)
+        return observe(SyncStatus()) { acc ->
+            combine(dao.observeSyncStates(acc, keys), errors, accounts.state) { states, errs, session ->
+                val times = keys.map { k -> states.firstOrNull { it.key == k }?.syncedAtMillis }
+                SyncStatus(
+                    lastUpdated = if (times.any { it == null }) null else Instant.ofEpochMilli(times.filterNotNull().min()),
+                    error = (session as? SessionState.Active)?.reauthReason
+                        ?: keys.firstNotNullOfOrNull { errs["$acc:$it"] },
+                )
+            }
+        }
+    }
+
+    override suspend fun refresh(target: SyncTarget): String? {
+        val (account, auth) = accounts.currentAuth()
+            ?: return (accounts.state.value as? SessionState.Active)?.reauthReason ?: "Not connected to your server."
+        return withContext(Dispatchers.Default) {
+            keysFor(target).map { key -> async { runSync(account.id, auth, key, syncFor(key)) } }.awaitAll().firstOrNull { it != null }
+        }
+    }
+
+    /**
+     * Refreshes the playlist list. Playlists whose server change time or song
+     * count differ from the cached copy are marked stale; those already viewed
+     * are refetched in the background so opening them shows current songs (for
+     * example playlists rewritten daily by server-side scripts).
+     */
     private suspend fun syncPlaylists(acc: String, auth: ServerAuth) {
-        dao.replacePlaylists(acc, client.playlists(auth).map { it.toEntity(acc) })
+        val before = dao.playlistMarkers(acc).associateBy { it.id }
+        val fresh = client.playlists(auth).map { it.toEntity(acc) }
+        dao.replacePlaylists(acc, fresh)
+        val toPrefetch = mutableListOf<String>()
+        for (p in fresh) {
+            val old = before[p.id] ?: continue // New to this device: fetched when first opened.
+            if (old.changed == p.changed && old.songCount == p.songCount) continue
+            val key = "playlist:${p.id}"
+            val wasFetched = dao.syncedAt(acc, key) != null
+            dao.deleteSyncState(acc, key)
+            if (wasFetched) toPrefetch += p.id
+        }
+        if (toPrefetch.isNotEmpty()) {
+            scope.launch(Dispatchers.Default) {
+                val gate = Semaphore(2)
+                coroutineScopeAll(toPrefetch) { id ->
+                    gate.withPermit {
+                        val key = "playlist:$id"
+                        if (inFlight.add("$acc:$key")) {
+                            try {
+                                runSync(acc, auth, key, syncFor(key))
+                            } finally {
+                                inFlight.remove("$acc:$key")
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private suspend fun syncPlaylist(acc: String, auth: ServerAuth, id: String) {

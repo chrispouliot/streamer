@@ -1,8 +1,12 @@
 package dev.streamer.app.ui.navigation
 
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import dev.streamer.app.ui.library.LibraryRequest
 
 enum class TopLevel(val label: String, val route: Any) {
     Home("Home", Routes.Home),
@@ -44,6 +48,14 @@ class AppNavigator(private val nav: NavHostController, private val sheet: Mutabl
     fun openSettings() = navigate(Routes.Settings, singleTop = true)
     fun openDownloads() = navigate(Routes.Downloads, singleTop = true)
     fun openSearch() = selectTopLevel(TopLevel.Search)
+
+    /** Pending view for Library to show next (consumed by Library). */
+    var libraryRequest by mutableStateOf<LibraryRequest?>(null)
+
+    fun openLibrary(request: LibraryRequest) {
+        libraryRequest = request
+        selectTopLevel(TopLevel.Library)
+    }
     fun openReconnect() = navigate(Routes.Connect, singleTop = true)
 
     fun openNowPlaying() {

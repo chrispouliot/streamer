@@ -33,6 +33,8 @@ data class AlbumSummary(
     val year: Int?,
     val songCount: Int?,
     val artwork: Artwork,
+    /** When the album was added to the server's library, if known. */
+    val addedAt: Instant? = null,
 )
 
 data class AlbumDetail(
@@ -63,6 +65,8 @@ data class PlaylistSummary(
     val songCount: Int?,
     val duration: Duration?,
     val artwork: Artwork,
+    /** When the playlist last changed on the server, if known. */
+    val changedAt: Instant? = null,
 )
 
 /** One position in a playlist. The same song may occur more than once. */

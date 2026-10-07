@@ -42,6 +42,11 @@ interface LibraryRepository {
     /** Records that a song started playing, and the album/playlist it was played from (local history only). */
     fun recordPlayed(song: Song, source: PlaybackSource?)
 
+    fun syncStatus(target: SyncTarget): Flow<SyncStatus>
+
+    /** Refreshes [target] from the server now, whatever its age. Returns a user message on failure, null on success. */
+    suspend fun refresh(target: SyncTarget): String?
+
     /** Stars or unstars a song. Updates [starredSongIds] immediately and reverts if the server rejects it. */
     fun setSongStarred(songId: String, starred: Boolean)
 }

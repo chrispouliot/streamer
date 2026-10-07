@@ -68,6 +68,8 @@ data class AlbumEntity(
     val songCount: Int?,
     val durationSec: Int?,
     val coverArt: String?,
+    /** When the album was added to the server library (ISO-8601). Added in schema v5. */
+    @ColumnInfo(defaultValue = "NULL") val created: String? = null,
 )
 
 /** The server's "recently added" album order. Separate so album upserts never disturb it. */
@@ -164,5 +166,8 @@ data class RecentCollectionEntity(val accountId: String, val kind: String, val c
 
 data class RecentAlbum(val playedAtMillis: Long, @Embedded val album: AlbumEntity)
 data class RecentPlaylist(val playedAtMillis: Long, @Embedded val playlist: PlaylistEntity)
+
+/** What's needed to notice that a server playlist changed since it was cached. */
+data class PlaylistMarker(val id: String, val changed: String?, val songCount: Int?)
 
 data class PositionedSong(val position: Int, @Embedded val song: SongEntity)

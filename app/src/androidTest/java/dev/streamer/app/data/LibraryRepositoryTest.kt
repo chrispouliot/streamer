@@ -146,6 +146,42 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun forcedRefreshReportsStatusAndKeepsDataOnFailure() = runBlocking {
+        responses = mapOf("getPlaylists" to ""","playlists":{"playlist":[{"id":"p1","name":"Kept"}]}""")
+        connect()
+        assertEquals(null, repo.refresh(SyncTarget.Playlists))
+        val ok = repo.syncStatus(SyncTarget.Playlists).firstMatching { it.lastUpdated != null }
+        assertEquals(null, ok.error)
+
+        responses = mapOf("getPlaylists" to null) // HTTP 500 on every retry.
+        val message = repo.refresh(SyncTarget.Playlists)
+        assertTrue(message != null)
+        val failed = repo.syncStatus(SyncTarget.Playlists).firstMatching { it.error != null }
+        assertEquals(ok.lastUpdated, failed.lastUpdated) // Last good refresh time kept.
+        assertEquals(listOf("Kept"), repo.playlists.firstMatching { true }.map { it.name })
+    }
+
+    @Test
+    fun rewrittenPlaylistIsRefetchedWhenTheListShowsItChanged() = runBlocking {
+        responses = mapOf(
+            "getPlaylists" to ""","playlists":{"playlist":[{"id":"daily","name":"Daily","songCount":1,"changed":"2026-10-05T06:00:00Z"}]}""",
+            "getPlaylist" to ""","playlist":{"id":"daily","name":"Daily","changed":"2026-10-05T06:00:00Z","entry":[{"id":"old","title":"Yesterday"}]}""",
+        )
+        connect()
+        repo.refresh(SyncTarget.Playlists)
+        assertEquals(listOf("Yesterday"), repo.playlist("daily").firstMatching { it != null && it.entries.isNotEmpty() }!!.entries.map { it.song.title })
+
+        // A server-side script replaces the songs.
+        responses = mapOf(
+            "getPlaylists" to ""","playlists":{"playlist":[{"id":"daily","name":"Daily","songCount":2,"changed":"2026-10-06T06:00:00Z"}]}""",
+            "getPlaylist" to ""","playlist":{"id":"daily","name":"Daily","changed":"2026-10-06T06:00:00Z","entry":[{"id":"n1","title":"Today 1"},{"id":"n2","title":"Today 2"}]}""",
+        )
+        repo.refresh(SyncTarget.Playlists) // Only the list; the detail is refetched in the background.
+        val updated = db.library().observePlaylistEntries(currentAccountId(), "daily").firstMatching { it.size == 2 }
+        assertEquals(listOf("Today 1", "Today 2"), updated.map { it.song.title })
+    }
+
+    @Test
     fun unavailablePlaylistEmitsNullOnceTheAttemptFails() = runBlocking {
         responses = mapOf("getPlaylist" to null) // HTTP 500 for every attempt.
         connect()

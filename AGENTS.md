@@ -155,6 +155,11 @@ android-install
 android-gradle connectedDebugAndroidTest
 ```
 
+`gradle.properties` sets `android.injected.androidTest.leaveApksInstalledAfterRun=true`
+so device tests no longer uninstall the app afterwards (which would delete its
+sign-in, cache and downloads). Instrumented tests use in-memory databases and
+separate files, so they do not touch the app's real data.
+
 The helpers can use USB or an already-connected wireless ADB device. If more
 than one device is connected, set `ANDROID_SERIAL` for the helpers or use
 `adb -s SERIAL` for individual ADB commands. Host USB permissions and wireless

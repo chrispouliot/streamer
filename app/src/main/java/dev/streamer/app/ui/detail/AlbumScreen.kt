@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import dev.streamer.app.data.LibraryRepository
+import dev.streamer.app.data.SyncTarget
 import dev.streamer.app.model.AlbumDetail
 import dev.streamer.app.model.Artwork
 import dev.streamer.app.playback.PlaybackSource
@@ -14,6 +15,7 @@ import dev.streamer.app.playback.PlayerController
 import dev.streamer.app.ui.components.SongActions
 import dev.streamer.app.ui.components.SongLeading
 import dev.streamer.app.ui.components.SongRow
+import dev.streamer.app.ui.components.SyncController
 import dev.streamer.app.ui.components.appViewModel
 import dev.streamer.app.ui.components.dotJoin
 import dev.streamer.app.ui.components.formatLength
@@ -25,6 +27,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 class AlbumViewModel(library: LibraryRepository, id: String) : ViewModel() {
+    val sync = SyncController(library, SyncTarget.Album(id), viewModelScope)
+
     val state: StateFlow<DetailState<AlbumDetail>> = library.album(id)
         .map { if (it == null) DetailState.NotFound else DetailState.Loaded(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DetailState.Loading)
@@ -35,6 +39,8 @@ fun AlbumRoute(id: String, navigator: AppNavigator, player: PlayerController) {
     val vm = appViewModel(key = "album-$id") { AlbumViewModel(it.library, id) }
     val state by vm.state.collectAsStateWithLifecycle()
     val playerState by player.state.collectAsStateWithLifecycle()
+    val syncStatus by vm.sync.status.collectAsStateWithLifecycle()
+    val refreshing by vm.sync.refreshing.collectAsStateWithLifecycle()
     val album = (state as? DetailState.Loaded)?.value
     val fromThis = (playerState.source as? PlaybackSource.Album)?.id == id
     val source = album?.let { PlaybackSource.Album(id, it.summary.name) }
@@ -72,6 +78,9 @@ fun AlbumRoute(id: String, navigator: AppNavigator, player: PlayerController) {
         },
         onShuffle = { album?.let { player.play(it.songs, 0, source, shuffle = true) } },
         emptyMessage = "This album has no songs.",
+        sync = syncStatus,
+        refreshing = refreshing,
+        onRefresh = vm.sync::refresh,
     ) { pad ->
         val songs = album?.songs.orEmpty()
         itemsIndexed(songs, key = { _, s -> s.id }) { i, song ->

@@ -50,6 +50,7 @@ fun AlbumDto.toEntity(acc: String) = AlbumEntity(
     songCount = songCount,
     durationSec = duration,
     coverArt = coverArt,
+    created = created,
 )
 
 fun ArtistDto.toEntity(acc: String) = ArtistEntity(acc, id, name ?: "Unknown artist", albumCount, coverArt)
@@ -102,6 +103,7 @@ fun AlbumEntity.toModel() = AlbumSummary(
     year = year,
     songCount = songCount,
     artwork = Artwork(coverArt, seed = id, accountId = accountId),
+    addedAt = created?.let(::parseServerTime),
 )
 
 fun ArtistEntity.toModel() = ArtistSummary(id, name, albumCount, Artwork(coverArt, seed = id, accountId = accountId))
@@ -114,4 +116,5 @@ fun PlaylistEntity.toModel() = PlaylistSummary(
     songCount = songCount,
     duration = durationSec?.seconds,
     artwork = Artwork(coverArt, seed = id, accountId = accountId),
+    changedAt = changed?.let(::parseServerTime),
 )

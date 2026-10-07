@@ -35,6 +35,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import dev.streamer.app.data.LibraryRepository
+import dev.streamer.app.data.SyncStatus
+import dev.streamer.app.data.SyncTarget
 import dev.streamer.app.model.AlbumSummary
 import dev.streamer.app.model.Artwork
 import dev.streamer.app.model.PlaylistSummary
@@ -42,15 +44,21 @@ import dev.streamer.app.model.RecentCollection
 import dev.streamer.app.model.Song
 import dev.streamer.app.playback.PlaybackSource
 import dev.streamer.app.playback.PlayerController
+import dev.streamer.app.settings.AlbumOrder
 import dev.streamer.app.ui.components.EmptyState
 import dev.streamer.app.ui.components.MediaCard
+import dev.streamer.app.ui.components.Refreshable
 import dev.streamer.app.ui.components.SectionHeader
 import dev.streamer.app.ui.components.ShortcutTile
 import dev.streamer.app.ui.components.SongActions
 import dev.streamer.app.ui.components.SongRow
+import dev.streamer.app.ui.components.SyncController
+import dev.streamer.app.ui.components.SyncStatusText
 import dev.streamer.app.ui.components.appViewModel
 import dev.streamer.app.ui.components.dotJoin
 import dev.streamer.app.ui.components.songCount
+import dev.streamer.app.ui.library.LibraryFilter
+import dev.streamer.app.ui.library.LibraryRequest
 import dev.streamer.app.ui.navigation.AppNavigator
 import dev.streamer.app.ui.navigation.LocalFloatingPlayerHeight
 import dev.streamer.app.ui.navigation.LocalShellLayout
@@ -76,6 +84,8 @@ data class HomeUiState(
 }
 
 class HomeViewModel(library: LibraryRepository) : ViewModel() {
+    val sync = SyncController(library, SyncTarget.Home, viewModelScope)
+
     val state: StateFlow<HomeUiState> = combine(
         library.playlists,
         library.recentlyAddedAlbums,
@@ -95,11 +105,20 @@ private data class Shortcut(val title: String, val artwork: Artwork, val open: (
 fun HomeRoute(navigator: AppNavigator, player: PlayerController) {
     val vm = appViewModel { HomeViewModel(it.library) }
     val state by vm.state.collectAsStateWithLifecycle()
-    HomeScreen(state, navigator, player)
+    val status by vm.sync.status.collectAsStateWithLifecycle()
+    val refreshing by vm.sync.refreshing.collectAsStateWithLifecycle()
+    HomeScreen(state, status, refreshing, vm.sync::refresh, navigator, player)
 }
 
 @Composable
-fun HomeScreen(state: HomeUiState, navigator: AppNavigator, player: PlayerController) {
+fun HomeScreen(
+    state: HomeUiState,
+    status: SyncStatus,
+    refreshing: Boolean,
+    onRefresh: () -> Unit,
+    navigator: AppNavigator,
+    player: PlayerController,
+) {
     val layout = LocalShellLayout.current
     val pad = layout.pagePadding
     val wide = layout.widthClass != WidthClass.Compact
@@ -117,105 +136,123 @@ fun HomeScreen(state: HomeUiState, navigator: AppNavigator, player: PlayerContro
         onOpenArtist = { s -> s.artistId?.let(navigator::openArtist) },
     )
 
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Dimens.xl + LocalFloatingPlayerHeight.current)) {
-        item(key = "header") {
-            Row(
-                Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(start = pad, end = pad - Dimens.s),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    greeting(),
-                    style = MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier.semantics { heading() },
-                )
-                Spacer(Modifier.weight(1f))
-                if (wide) {
-                    SearchLauncher(navigator::openSearch, Modifier.widthIn(max = 380.dp).weight(1f, fill = false))
-                } else {
-                    IconButton(onClick = navigator::openSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
-                    }
-                }
-            }
-        }
-        if (state.loaded && state.isEmpty) {
-            item(key = "empty") {
-                EmptyState(
-                    "Nothing here yet",
-                    "Playlists and recently added albums from your server appear here once they've loaded.",
-                )
-            }
-        }
-        if (shortcuts.isNotEmpty()) {
-            item(key = "shortcuts") {
-                val columns = if (wide) 4 else 2
-                Column(
-                    Modifier.padding(horizontal = pad, vertical = Dimens.s),
-                    verticalArrangement = Arrangement.spacedBy(Dimens.s),
+    Refreshable(refreshing, onRefresh, Modifier.fillMaxSize()) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Dimens.xl + LocalFloatingPlayerHeight.current)) {
+            item(key = "header") {
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(start = pad, end = pad - Dimens.s),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    shortcuts.chunked(columns).forEach { row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-                            row.forEach { ShortcutTile(it.title, it.artwork, it.open, Modifier.weight(1f)) }
-                            repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+                    Text(
+                        greeting(),
+                        style = MaterialTheme.typography.headlineMedium,
+                        modifier = Modifier.semantics { heading() },
+                    )
+                    Spacer(Modifier.weight(1f))
+                    if (wide) {
+                        SearchLauncher(navigator::openSearch, Modifier.widthIn(max = 380.dp).weight(1f, fill = false))
+                    } else {
+                        IconButton(onClick = navigator::openSettings) {
+                            Icon(Icons.Filled.Settings, contentDescription = "Settings")
                         }
                     }
                 }
             }
-        }
-        if (state.playlists.isNotEmpty()) {
-            item(key = "playlists-header") { SectionHeader("Playlists", Modifier.padding(start = pad, end = pad, top = Dimens.l)) }
-            item(key = "playlists") {
-                Shelf(state.playlists, key = { it.id }) { p ->
-                    MediaCard(
-                        p.name,
-                        p.comment ?: p.songCount?.let(::songCount),
-                        p.artwork,
-                        onClick = { navigator.openPlaylist(p.id) },
-                        modifier = Modifier.width(if (wide) 200.dp else Dimens.cardWidth),
+            item(key = "status") { SyncStatusText(status, Modifier.padding(horizontal = pad)) }
+            if (state.loaded && state.isEmpty) {
+                item(key = "empty") {
+                    EmptyState(
+                        "Nothing here yet",
+                        "Playlists and recently added albums from your server appear here once they've loaded.",
                     )
                 }
             }
-        }
-        if (state.recentAlbums.isNotEmpty()) {
-            item(key = "albums-header") {
-                SectionHeader("Recently added albums", Modifier.padding(start = pad, end = pad, top = Dimens.l))
+            if (shortcuts.isNotEmpty()) {
+                item(key = "shortcuts") {
+                    val columns = if (wide) 4 else 2
+                    Column(
+                        Modifier.padding(horizontal = pad, vertical = Dimens.s),
+                        verticalArrangement = Arrangement.spacedBy(Dimens.s),
+                    ) {
+                        shortcuts.chunked(columns).forEach { row ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                                row.forEach { ShortcutTile(it.title, it.artwork, it.open, Modifier.weight(1f)) }
+                                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+                            }
+                        }
+                    }
+                }
             }
-            item(key = "albums") {
-                Shelf(state.recentAlbums, key = { it.id }) { a ->
-                    MediaCard(
-                        a.name,
-                        dotJoin(a.artist, a.year?.toString()),
-                        a.artwork,
-                        onClick = { navigator.openAlbum(a.id) },
-                        modifier = Modifier.width(if (wide) 200.dp else Dimens.cardWidth),
+            if (state.playlists.isNotEmpty()) {
+                item(key = "playlists-header") { SectionHeader(
+                        "Playlists",
+                        Modifier.padding(start = pad, end = pad, top = Dimens.l),
+                        actionLabel = "Show all",
+                        onAction = { navigator.openLibrary(LibraryRequest(LibraryFilter.Playlists)) },
+                    ) }
+                item(key = "playlists") {
+                    Shelf(state.playlists, key = { it.id }) { p ->
+                        MediaCard(
+                            p.name,
+                            p.comment ?: p.songCount?.let(::songCount),
+                            p.artwork,
+                            onClick = { navigator.openPlaylist(p.id) },
+                            modifier = Modifier.width(if (wide) 200.dp else Dimens.cardWidth),
+                        )
+                    }
+                }
+            }
+            if (state.recentAlbums.isNotEmpty()) {
+                item(key = "albums-header") {
+                    SectionHeader(
+                        "Recently added albums",
+                        Modifier.padding(start = pad, end = pad, top = Dimens.l),
+                        actionLabel = "Show all",
+                        onAction = { navigator.openLibrary(LibraryRequest(LibraryFilter.Albums, AlbumOrder.RecentlyAdded)) },
+                    )
+                }
+                item(key = "albums") {
+                    Shelf(state.recentAlbums, key = { it.id }) { a ->
+                        MediaCard(
+                            a.name,
+                            dotJoin(a.artist, a.year?.toString()),
+                            a.artwork,
+                            onClick = { navigator.openAlbum(a.id) },
+                            modifier = Modifier.width(if (wide) 200.dp else Dimens.cardWidth),
+                        )
+                    }
+                }
+            }
+            if (state.recentlyPlayed.isNotEmpty()) {
+                item(key = "recent-header") {
+                    SectionHeader("Recently played", Modifier.padding(start = pad, end = pad, top = Dimens.l))
+                }
+                itemsIndexed(state.recentlyPlayed, key = { i, s -> "recent-$i-${s.id}" }) { index, song ->
+                    SongRow(
+                        song,
+                        onClick = { player.play(state.recentlyPlayed, index, PlaybackSource.Songs("Recently played")) },
+                        actions = songActions,
+                        horizontalPadding = pad,
                     )
                 }
             }
-        }
-        if (state.recentlyPlayed.isNotEmpty()) {
-            item(key = "recent-header") {
-                SectionHeader("Recently played", Modifier.padding(start = pad, end = pad, top = Dimens.l))
-            }
-            itemsIndexed(state.recentlyPlayed, key = { i, s -> "recent-$i-${s.id}" }) { index, song ->
-                SongRow(
-                    song,
-                    onClick = { player.play(state.recentlyPlayed, index, PlaybackSource.Songs("Recently played")) },
-                    actions = songActions,
-                    horizontalPadding = pad,
-                )
-            }
-        }
-        if (state.favourites.isNotEmpty()) {
-            item(key = "favourites-header") {
-                SectionHeader("Favourite songs", Modifier.padding(start = pad, end = pad, top = Dimens.l))
-            }
-            itemsIndexed(state.favourites.take(10), key = { i, s -> "fav-$i-${s.id}" }) { index, song ->
-                SongRow(
-                    song,
-                    onClick = { player.play(state.favourites, index, PlaybackSource.Songs("Favourite songs")) },
-                    actions = songActions,
-                    horizontalPadding = pad,
-                )
+            if (state.favourites.isNotEmpty()) {
+                item(key = "favourites-header") {
+                    SectionHeader(
+                        "Favourite songs",
+                        Modifier.padding(start = pad, end = pad, top = Dimens.l),
+                        actionLabel = "Show all",
+                        onAction = { navigator.openLibrary(LibraryRequest(LibraryFilter.Favourites)) },
+                    )
+                }
+                itemsIndexed(state.favourites.take(10), key = { i, s -> "fav-$i-${s.id}" }) { index, song ->
+                    SongRow(
+                        song,
+                        onClick = { player.play(state.favourites, index, PlaybackSource.Songs("Favourite songs")) },
+                        actions = songActions,
+                        horizontalPadding = pad,
+                    )
+                }
             }
         }
     }

@@ -24,6 +24,12 @@ enum class PlaylistSort(val label: String) {
     Artist("Artist"),
 }
 
+enum class AlbumOrder(val label: String) { Name("Name"), Artist("Artist"), Year("Year"), RecentlyAdded("Recently added") }
+
+enum class ArtistOrder(val label: String) { Name("Name"), MostAlbums("Most albums") }
+
+enum class PlaylistListOrder(val label: String) { Name("Name"), RecentlyUpdated("Recently updated") }
+
 private val Context.settingsDataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
 
 /** Non-secret user preferences. Credentials never go here. */
@@ -49,6 +55,23 @@ class SettingsRepository(context: Context) {
     }
 
     private fun playlistSortKey(playlistId: String) = stringPreferencesKey("playlist_sort:$playlistId")
+
+    val albumOrder: Flow<AlbumOrder> = enumPref("album_order", AlbumOrder.Name)
+    suspend fun setAlbumOrder(order: AlbumOrder) = setEnumPref("album_order", order)
+
+    val artistOrder: Flow<ArtistOrder> = enumPref("artist_order", ArtistOrder.Name)
+    suspend fun setArtistOrder(order: ArtistOrder) = setEnumPref("artist_order", order)
+
+    val playlistListOrder: Flow<PlaylistListOrder> = enumPref("playlist_list_order", PlaylistListOrder.Name)
+    suspend fun setPlaylistListOrder(order: PlaylistListOrder) = setEnumPref("playlist_list_order", order)
+
+    private inline fun <reified E : Enum<E>> enumPref(name: String, default: E): Flow<E> = store.data.map { prefs ->
+        prefs[stringPreferencesKey(name)]?.let { stored -> enumValues<E>().firstOrNull { it.name == stored } } ?: default
+    }
+
+    private suspend fun <E : Enum<E>> setEnumPref(name: String, value: E) {
+        store.edit { it[stringPreferencesKey(name)] = value.name }
+    }
 
     private companion object {
         val THEME_MODE = stringPreferencesKey("theme_mode")

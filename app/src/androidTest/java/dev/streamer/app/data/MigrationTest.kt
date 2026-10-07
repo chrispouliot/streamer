@@ -24,7 +24,7 @@ class MigrationTest {
             )
             close()
         }
-        val db = helper.runMigrationsAndValidate("migration-test", 4, true)
+        val db = helper.runMigrationsAndValidate("migration-test", 5, true)
         db.query("SELECT title, starred, starredAt FROM song WHERE id = 's1'").use { c ->
             c.moveToFirst()
             assertEquals("Kept", c.getString(0))

@@ -144,6 +144,15 @@ interface LibraryDao {
     @Upsert
     suspend fun upsertSyncState(state: SyncStateEntity)
 
+    @Query("SELECT * FROM sync_state WHERE accountId = :acc AND `key` IN (:keys)")
+    fun observeSyncStates(acc: String, keys: List<String>): Flow<List<SyncStateEntity>>
+
+    @Query("SELECT id, changed, songCount FROM playlist WHERE accountId = :acc")
+    suspend fun playlistMarkers(acc: String): List<PlaylistMarker>
+
+    @Query("DELETE FROM sync_state WHERE accountId = :acc AND `key` = :key")
+    suspend fun deleteSyncState(acc: String, key: String)
+
     /** Makes every cached playlist detail stale, so the next visit refetches it. */
     @Query("DELETE FROM sync_state WHERE accountId = :acc AND `key` LIKE 'playlist:%'")
     suspend fun invalidatePlaylistDetails(acc: String)

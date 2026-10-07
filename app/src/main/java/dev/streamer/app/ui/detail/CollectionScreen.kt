@@ -40,6 +40,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import dev.streamer.app.data.SyncStatus
 import dev.streamer.app.model.Artwork
 import dev.streamer.app.ui.components.ArtSize
 import dev.streamer.app.ui.components.ArtistArt
@@ -47,7 +48,9 @@ import dev.streamer.app.ui.components.BackBar
 import dev.streamer.app.ui.components.CoverArt
 import dev.streamer.app.ui.components.EmptyState
 import dev.streamer.app.ui.components.PlayPauseButton
+import dev.streamer.app.ui.components.Refreshable
 import dev.streamer.app.ui.components.ShuffleButton
+import dev.streamer.app.ui.components.SyncStatusText
 import dev.streamer.app.ui.icons.AppIcons
 import dev.streamer.app.ui.navigation.LocalFloatingPlayerHeight
 import dev.streamer.app.ui.navigation.LocalShellLayout
@@ -86,6 +89,9 @@ fun CollectionScreen(
     onPlay: () -> Unit,
     onShuffle: () -> Unit,
     emptyMessage: String,
+    sync: SyncStatus = SyncStatus(),
+    refreshing: Boolean = false,
+    onRefresh: () -> Unit = {},
     topActions: @Composable RowScope.() -> Unit = {},
     tracks: LazyListScope.(horizontalPadding: androidx.compose.ui.unit.Dp) -> Unit,
 ) {
@@ -110,64 +116,66 @@ fun CollectionScreen(
     val tint = playerTint(header.artwork)
     val gradient = Brush.verticalGradient(0f to tint, 0.45f to MaterialTheme.colorScheme.background)
     // The tint starts behind the status bar; only the content is inset.
-    BoxWithConstraints(Modifier.fillMaxSize().background(gradient).windowInsetsPadding(WindowInsets.topBar)) {
-        val width = maxWidth
-        if (width >= 720.dp) {
-            Row(Modifier.fillMaxSize()) {
-                Column(
-                    Modifier
-                        .width((width * 0.38f).coerceAtMost(400.dp))
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(start = Dimens.xs, bottom = Dimens.xl + LocalFloatingPlayerHeight.current),
-                ) {
-                    BackBar(onBack, actions = topActions)
-                    Column(Modifier.padding(horizontal = pad - Dimens.xs)) {
-                        CoverArt(header.artwork, Modifier.fillMaxWidth().aspectRatio(1f), MaterialTheme.shapes.large, "Artwork", ArtSize.Large)
-                        Spacer(Modifier.height(Dimens.l))
-                        HeaderText(header, center = false)
-                        Spacer(Modifier.height(Dimens.l))
-                        if (hasSongs) WidePlayButtons(isPlayingThis, onPlay, onShuffle)
+    Refreshable(refreshing, onRefresh, Modifier.fillMaxSize().background(gradient).windowInsetsPadding(WindowInsets.topBar)) {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val width = maxWidth
+            if (width >= 720.dp) {
+                Row(Modifier.fillMaxSize()) {
+                    Column(
+                        Modifier
+                            .width((width * 0.38f).coerceAtMost(400.dp))
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(start = Dimens.xs, bottom = Dimens.xl + LocalFloatingPlayerHeight.current),
+                    ) {
+                        BackBar(onBack, actions = topActions)
+                        Column(Modifier.padding(horizontal = pad - Dimens.xs)) {
+                            CoverArt(header.artwork, Modifier.fillMaxWidth().aspectRatio(1f), MaterialTheme.shapes.large, "Artwork", ArtSize.Large)
+                            Spacer(Modifier.height(Dimens.l))
+                            HeaderText(header, sync, center = false)
+                            Spacer(Modifier.height(Dimens.l))
+                            if (hasSongs) WidePlayButtons(isPlayingThis, onPlay, onShuffle)
+                        }
+                    }
+                    LazyColumn(Modifier.weight(1f).fillMaxSize(), contentPadding = PaddingValues(top = 56.dp, bottom = Dimens.xl + LocalFloatingPlayerHeight.current, end = Dimens.s)) {
+                        if (!hasSongs) item { EmptyState("No songs", emptyMessage) }
+                        tracks(Dimens.s)
                     }
                 }
-                LazyColumn(Modifier.weight(1f).fillMaxSize(), contentPadding = PaddingValues(top = 56.dp, bottom = Dimens.xl + LocalFloatingPlayerHeight.current, end = Dimens.s)) {
-                    if (!hasSongs) item { EmptyState("No songs", emptyMessage) }
-                    tracks(Dimens.s)
-                }
-            }
-        } else {
-            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Dimens.xl + LocalFloatingPlayerHeight.current)) {
-                item(key = "back") { BackBar(onBack, actions = topActions) }
-                item(key = "header") {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = pad), horizontalAlignment = Alignment.CenterHorizontally) {
-                        CoverArt(
-                            header.artwork,
-                            Modifier.fillMaxWidth(0.62f).widthIn(max = 300.dp).aspectRatio(1f),
-                            MaterialTheme.shapes.large,
-                            "Artwork",
-                            ArtSize.Large,
-                        )
-                        Spacer(Modifier.height(Dimens.xl))
-                        HeaderText(header, center = false, modifier = Modifier.fillMaxWidth())
-                        if (hasSongs) {
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Spacer(Modifier.weight(1f))
-                                ShuffleButton(enabled = false, onClick = onShuffle)
-                                Spacer(Modifier.width(Dimens.s))
-                                PlayPauseButton(isPlayingThis, onPlay, size = 64.dp)
+            } else {
+                LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Dimens.xl + LocalFloatingPlayerHeight.current)) {
+                    item(key = "back") { BackBar(onBack, actions = topActions) }
+                    item(key = "header") {
+                        Column(Modifier.fillMaxWidth().padding(horizontal = pad), horizontalAlignment = Alignment.CenterHorizontally) {
+                            CoverArt(
+                                header.artwork,
+                                Modifier.fillMaxWidth(0.62f).widthIn(max = 300.dp).aspectRatio(1f),
+                                MaterialTheme.shapes.large,
+                                "Artwork",
+                                ArtSize.Large,
+                            )
+                            Spacer(Modifier.height(Dimens.xl))
+                            HeaderText(header, sync, center = false, modifier = Modifier.fillMaxWidth())
+                            if (hasSongs) {
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Spacer(Modifier.weight(1f))
+                                    ShuffleButton(enabled = false, onClick = onShuffle)
+                                    Spacer(Modifier.width(Dimens.s))
+                                    PlayPauseButton(isPlayingThis, onPlay, size = 64.dp)
+                                }
                             }
                         }
                     }
+                    if (!hasSongs) item(key = "empty") { EmptyState("No songs", emptyMessage) }
+                    tracks(Dimens.s)
                 }
-                if (!hasSongs) item(key = "empty") { EmptyState("No songs", emptyMessage) }
-                tracks(Dimens.s)
             }
         }
     }
 }
 
 @Composable
-private fun HeaderText(header: CollectionHeader, center: Boolean, modifier: Modifier = Modifier) {
+private fun HeaderText(header: CollectionHeader, sync: SyncStatus, center: Boolean, modifier: Modifier = Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(Dimens.s)) {
         Text(
             header.title,
@@ -190,6 +198,7 @@ private fun HeaderText(header: CollectionHeader, center: Boolean, modifier: Modi
             Text(header.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Text(header.meta, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        SyncStatusText(sync, showWhenFine = true)
     }
 }
 

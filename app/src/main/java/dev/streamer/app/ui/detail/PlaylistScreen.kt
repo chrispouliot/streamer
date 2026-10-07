@@ -21,6 +21,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import dev.streamer.app.data.LibraryRepository
+import dev.streamer.app.data.SyncTarget
 import dev.streamer.app.model.PlaylistDetail
 import dev.streamer.app.model.PlaylistEntry
 import dev.streamer.app.playback.PlaybackSource
@@ -30,6 +31,7 @@ import dev.streamer.app.settings.SettingsRepository
 import dev.streamer.app.ui.components.SongActions
 import dev.streamer.app.ui.components.SongLeading
 import dev.streamer.app.ui.components.SongRow
+import dev.streamer.app.ui.components.SyncController
 import dev.streamer.app.ui.components.appViewModel
 import dev.streamer.app.ui.components.dotJoin
 import dev.streamer.app.ui.components.formatLength
@@ -46,6 +48,8 @@ class PlaylistViewModel(library: LibraryRepository, private val settings: Settin
     val state: StateFlow<DetailState<PlaylistDetail>> = library.playlist(id)
         .map { if (it == null) DetailState.NotFound else DetailState.Loaded(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DetailState.Loading)
+
+    val sync = SyncController(library, SyncTarget.Playlist(id), viewModelScope)
 
     /** The user's choice for this playlist, or null to use [defaultSortFor]. */
     val chosenSort: StateFlow<PlaylistSort?> = settings.playlistSort(id)
@@ -90,6 +94,8 @@ fun PlaylistRoute(id: String, navigator: AppNavigator, player: PlayerController)
     val state by vm.state.collectAsStateWithLifecycle()
     val chosenSort by vm.chosenSort.collectAsStateWithLifecycle()
     val playerState by player.state.collectAsStateWithLifecycle()
+    val syncStatus by vm.sync.status.collectAsStateWithLifecycle()
+    val refreshing by vm.sync.refreshing.collectAsStateWithLifecycle()
     val playlist = (state as? DetailState.Loaded)?.value
     val sort = chosenSort ?: defaultSortFor(playlist?.entries.orEmpty())
     val hasFavourites = remember(playlist) { playlist?.entries.orEmpty().any { it.song.favouritedAt != null } }
@@ -132,6 +138,9 @@ fun PlaylistRoute(id: String, navigator: AppNavigator, player: PlayerController)
         onPlay = { if (fromThis) player.togglePlayPause() else player.play(songs, 0, source, sourcePositions = positions) },
         onShuffle = { player.play(songs, 0, source, shuffle = true, sourcePositions = positions) },
         emptyMessage = "This playlist is empty. Add songs to it in Navidrome.",
+        sync = syncStatus,
+        refreshing = refreshing,
+        onRefresh = vm.sync::refresh,
         topActions = { if (songs.size > 1) SortMenu(sort, hasFavourites, vm::setSort) },
     ) { pad ->
         // Keyed by position: a playlist may contain the same song more than once.
