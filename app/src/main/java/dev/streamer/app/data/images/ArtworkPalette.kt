@@ -2,6 +2,7 @@ package dev.streamer.app.data.images
 
 import android.content.Context
 import android.util.LruCache
+import androidx.core.content.edit
 import androidx.palette.graphics.Palette
 import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
@@ -14,10 +15,14 @@ import kotlinx.coroutines.withContext
 
 /**
  * The main colour of a cover image, extracted with Palette from the small
- * cached cover (the same image list rows show) and remembered per cover.
+ * cached cover (the same image list rows show) and remembered per cover, also
+ * across restarts, so player surfaces open in their final colour.
  */
 class ArtworkPalette(private val context: Context) {
     private val cache = LruCache<String, Int>(300)
+
+    // Opened now so it has loaded from disk by the time the first screen asks.
+    private val saved = context.getSharedPreferences("artwork_colors", Context.MODE_PRIVATE)
 
     private fun key(artwork: Artwork): String? {
         val account = artwork.accountId ?: return null
@@ -25,13 +30,18 @@ class ArtworkPalette(private val context: Context) {
         return "$account:$cover"
     }
 
-    /** Already-extracted colour (ARGB), without loading anything. */
-    fun cached(artwork: Artwork): Int? = key(artwork)?.let { cache.get(it) }
+    /** Already-extracted colour (ARGB), without loading any image. */
+    fun cached(artwork: Artwork): Int? {
+        val key = key(artwork) ?: return null
+        cache.get(key)?.let { return it }
+        if (!saved.contains(key)) return null
+        return saved.getInt(key, 0).also { cache.put(key, it) }
+    }
 
     /** Extracts the colour, loading the cover if needed; null without server artwork or when it can't load. */
     suspend fun mainColor(artwork: Artwork): Int? {
         val key = key(artwork) ?: return null
-        cache.get(key)?.let { return it }
+        cached(artwork)?.let { return it }
         val data = CoverArtRequest(artwork.accountId!!, artwork.coverArtId!!, SAMPLE_PX)
         val request = ImageRequest.Builder(context)
             .data(data)
@@ -41,7 +51,14 @@ class ArtworkPalette(private val context: Context) {
         val bitmap = (SingletonImageLoader.get(context).execute(request) as? SuccessResult)?.image?.toBitmap() ?: return null
         val color = withContext(Dispatchers.Default) { pick(Palette.from(bitmap).maximumColorCount(16).generate()) } ?: return null
         cache.put(key, color)
+        remember(key, color)
         return color
+    }
+
+    private fun remember(key: String, color: Int) {
+        // A few bytes per cover; start over if it ever grows large.
+        if (saved.all.size > MAX_SAVED) saved.edit { clear() }
+        saved.edit { putInt(key, color) }
     }
 
     /**
@@ -61,5 +78,6 @@ class ArtworkPalette(private val context: Context) {
     private companion object {
         /** Matches the small cover size used by rows, so its disk-cached image is reused. */
         const val SAMPLE_PX = 160
+        const val MAX_SAVED = 5_000
     }
 }
