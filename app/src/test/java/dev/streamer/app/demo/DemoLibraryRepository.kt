@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlin.time.Duration.Companion.milliseconds
 
-/** Fictional library for debug builds and previews only. */
+/** Fictional library for tests only. */
 class DemoLibraryRepository(private val catalog: DemoCatalog = DemoCatalog) : LibraryRepository {
     override val playlists = flowOf(catalog.playlists.map { it.summary })
     override val recentlyAddedAlbums = flowOf(catalog.albums.sortedByDescending { it.summary.year }.map { it.summary })
@@ -26,6 +26,8 @@ class DemoLibraryRepository(private val catalog: DemoCatalog = DemoCatalog) : Li
     private val starred = MutableStateFlow(catalog.initiallyStarred)
     override val starredSongIds = starred.asStateFlow()
     override val starredSongs = starred.map { ids -> catalog.allSongs.filter { it.id in ids } }
+
+    override fun recordPlayed(song: dev.streamer.app.model.Song) = Unit
 
     override fun setSongStarred(songId: String, starred: Boolean) {
         this.starred.update { if (starred) it + songId else it - songId }

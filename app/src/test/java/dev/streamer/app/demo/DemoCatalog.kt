@@ -14,7 +14,7 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * Fictional artists, albums and playlists modelled on the design mockups.
- * Debug/preview use only; never shown in release builds.
+ * Test use only; not part of any APK.
  */
 object DemoCatalog {
     private val artistNames = listOf(

@@ -17,10 +17,14 @@ import androidx.room.RoomDatabase
         PlaylistEntity::class,
         PlaylistEntryEntity::class,
         SyncStateEntity::class,
+        PlayHistoryEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2)], // v2: song.starredAt
+    autoMigrations = [
+        AutoMigration(from = 1, to = 2), // v2: song.starredAt
+        AutoMigration(from = 2, to = 3), // v3: play_history
+    ],
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun accounts(): AccountDao

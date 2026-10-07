@@ -7,6 +7,7 @@ import dev.streamer.app.data.account.AccountRepository
 import dev.streamer.app.data.account.SessionState
 import dev.streamer.app.data.local.AlbumSongEntity
 import dev.streamer.app.data.local.LibraryDao
+import dev.streamer.app.data.local.PlayHistoryEntity
 import dev.streamer.app.data.local.PlaylistEntryEntity
 import dev.streamer.app.data.local.SyncStateEntity
 import dev.streamer.app.data.remote.ApiError
@@ -79,8 +80,21 @@ class NavidromeLibraryRepository(
         dao.observeNewestAlbums(acc).map { list -> list.map { it.toModel() } }
     }
 
-    // Local play history is recorded once real playback exists (Phase 3).
-    override val recentlyPlayed: Flow<List<Song>> = flowOf(emptyList())
+    override val recentlyPlayed: Flow<List<Song>> = observe(emptyList()) { acc ->
+        dao.observeRecentlyPlayed(acc, limit = 20).map { list -> list.map { it.toModel() } }
+    }
+
+    override fun recordPlayed(song: Song) {
+        val acc = song.artwork.accountId ?: (accounts.state.value as? SessionState.Active)?.account?.id ?: return
+        scope.launch(Dispatchers.Default) {
+            try {
+                dao.insertHistory(PlayHistoryEntity(accountId = acc, songId = song.id, playedAtMillis = clock()))
+                dao.pruneHistory(acc, keep = 500)
+            } catch (e: SQLException) {
+                // Account removed meanwhile.
+            }
+        }
+    }
 
     override val albums = observe(emptyList(), { refresh(ALBUMS, 30.minutes, ::syncAllAlbums) }) { acc ->
         dao.observeAlbums(acc).map { list -> list.map { it.toModel() } }

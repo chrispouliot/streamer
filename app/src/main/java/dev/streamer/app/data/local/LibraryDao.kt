@@ -86,6 +86,24 @@ interface LibraryDao {
     @Query("SELECT id FROM song WHERE accountId = :acc AND starred = 1")
     fun observeStarredSongIds(acc: String): Flow<List<String>>
 
+    /** Distinct songs, most recently played first. */
+    @Query(
+        """SELECT s.* FROM song s
+           JOIN (SELECT songId, MAX(playedAtMillis) AS lastPlayed FROM play_history WHERE accountId = :acc GROUP BY songId) h
+             ON h.songId = s.id
+           WHERE s.accountId = :acc ORDER BY h.lastPlayed DESC LIMIT :limit""",
+    )
+    fun observeRecentlyPlayed(acc: String, limit: Int): Flow<List<SongEntity>>
+
+    @androidx.room.Insert
+    suspend fun insertHistory(entry: PlayHistoryEntity)
+
+    @Query(
+        """DELETE FROM play_history WHERE accountId = :acc AND rowId NOT IN
+           (SELECT rowId FROM play_history WHERE accountId = :acc ORDER BY playedAtMillis DESC LIMIT :keep)""",
+    )
+    suspend fun pruneHistory(acc: String, keep: Int)
+
     // --- Local search over cached metadata (used offline) ---
 
     @Query("SELECT * FROM song WHERE accountId = :acc AND (title LIKE :pattern OR artist LIKE :pattern) ORDER BY title COLLATE NOCASE LIMIT :limit")

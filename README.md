@@ -4,10 +4,10 @@ Native Kotlin/Jetpack Compose Android player for a Navidrome server
 (Subsonic/OpenSubsonic API). See `PLAN.md` for scope and phase status and
 `AGENTS.md` for the development environment.
 
-Status: Phase 2 (Navidrome connection and cached library) implemented, pending
-device and live-server verification. Both build types sign in to a Navidrome server
-and show its library. There is no real audio playback yet: debug builds drive a
-silent simulated player, release builds have none. No downloading yet.
+Status: Phase 3 (streaming playback) implemented, pending device verification.
+The app signs in to a Navidrome server, caches the library, and streams through a
+Media3 player service with media notification, lock-screen and headset controls.
+No offline downloads yet.
 
 ## Project choices
 
@@ -33,6 +33,7 @@ All library/plugin versions live in `gradle/libs.versions.toml`.
 | OkHttp | 5.5.0 |
 | Room (KSP 2.3.12) | 2.8.5 — schema in `app/schemas`, commit it |
 | Coil | 3.6.3 |
+| Media3 (ExoPlayer, session, OkHttp data source) | 1.11.1 |
 | JDK (from Nix shell) | 21; bytecode target 17 |
 
 Gradle is not installed by Nix: `./gradlew` downloads the pinned distribution

@@ -135,4 +135,17 @@ data class PlaylistEntryEntity(val accountId: String, val playlistId: String, va
 )
 data class SyncStateEntity(val accountId: String, val key: String, val syncedAtMillis: Long)
 
+/** Local play history (schema v3); feeds "Recently played". */
+@Entity(
+    tableName = "play_history",
+    foreignKeys = [ForeignKey(AccountEntity::class, ["id"], [ACCOUNT_FK], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("accountId", "playedAtMillis")],
+)
+data class PlayHistoryEntity(
+    @PrimaryKey(autoGenerate = true) val rowId: Long = 0,
+    val accountId: String,
+    val songId: String,
+    val playedAtMillis: Long,
+)
+
 data class PositionedSong(val position: Int, @Embedded val song: SongEntity)

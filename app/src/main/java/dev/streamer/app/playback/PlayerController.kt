@@ -2,8 +2,10 @@ package dev.streamer.app.playback
 
 import dev.streamer.app.model.Song
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.serialization.Serializable
 import kotlin.time.Duration
 
+@Serializable
 enum class RepeatMode { Off, All, One }
 
 /** Where the current queue came from, for the "Playing from" header. */
@@ -45,8 +47,8 @@ data class PlayerState(
 
 /**
  * The single app-wide player. All player surfaces observe [state] and send
- * commands here; none of them own playback. Phase 3 implements this with a
- * service-owned Media3 player.
+ * commands here; none of them own playback. Implemented by
+ * [MediaPlayerController] over the service-owned Media3 player.
  */
 interface PlayerController {
     val state: StateFlow<PlayerState>

@@ -71,7 +71,7 @@ fun QueueList(
                     horizontalPadding = horizontalPadding,
                     // Queue actions replace the song menu here.
                 )
-                QueueItemMenu(item, isFirst = index == 0, isLast = index == upNext.lastIndex, player)
+                QueueItemMenu(item, isFirst = index == 0, isLast = index == upNext.lastIndex, canReorder = !state.shuffle, player)
             }
         }
     }
@@ -91,7 +91,7 @@ private fun QueueHeading(text: String, horizontalPadding: androidx.compose.ui.un
 }
 
 @Composable
-private fun QueueItemMenu(item: QueueItem, isFirst: Boolean, isLast: Boolean, player: PlayerController) {
+private fun QueueItemMenu(item: QueueItem, isFirst: Boolean, isLast: Boolean, canReorder: Boolean, player: PlayerController) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
@@ -99,11 +99,11 @@ private fun QueueItemMenu(item: QueueItem, isFirst: Boolean, isLast: Boolean, pl
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             DropdownMenuItem(text = { Text("Play now") }, onClick = { open = false; player.skipTo(item.occurrenceId) })
-            if (!isFirst) {
+            if (canReorder && !isFirst) {
                 DropdownMenuItem(text = { Text("Move to top") }, onClick = { open = false; player.moveUpcoming(item.occurrenceId, Int.MIN_VALUE / 2) })
                 DropdownMenuItem(text = { Text("Move up") }, onClick = { open = false; player.moveUpcoming(item.occurrenceId, -1) })
             }
-            if (!isLast) {
+            if (canReorder && !isLast) {
                 DropdownMenuItem(text = { Text("Move down") }, onClick = { open = false; player.moveUpcoming(item.occurrenceId, 1) })
             }
             DropdownMenuItem(text = { Text("Remove from queue") }, onClick = { open = false; player.remove(item.occurrenceId) })

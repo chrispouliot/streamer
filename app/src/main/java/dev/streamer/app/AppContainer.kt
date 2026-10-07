@@ -10,7 +10,9 @@ import dev.streamer.app.data.account.KeystoreCipher
 import dev.streamer.app.data.local.AppDatabase
 import dev.streamer.app.data.remote.SubsonicClient
 import dev.streamer.app.data.repository.NavidromeLibraryRepository
+import dev.streamer.app.playback.MediaPlayerController
 import dev.streamer.app.playback.PlayerController
+import dev.streamer.app.playback.QueueStore
 import dev.streamer.app.settings.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -48,9 +50,10 @@ fun createAppContainer(app: Application): AppContainer {
         scope,
     )
     val messages = UserMessages()
+    val library = NavidromeLibraryRepository(accounts, db.library(), subsonic, messages, scope)
     return AppContainer(
-        library = NavidromeLibraryRepository(accounts, db.library(), subsonic, messages, scope),
-        player = createPlayerController(scope),
+        library = library,
+        player = MediaPlayerController(app, scope, accounts, QueueStore(File(app.filesDir, "queue.json")), library::recordPlayed),
         settings = SettingsRepository(app),
         accounts = accounts,
         messages = messages,

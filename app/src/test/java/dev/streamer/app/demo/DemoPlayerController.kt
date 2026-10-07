@@ -22,8 +22,8 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * Silent in-memory player for debug builds: advances a clock instead of
- * playing audio. Replaced by the Media3 controller in Phase 3.
+ * Silent in-memory reference player for tests: advances a clock instead of
+ * playing audio and models the queue semantics the UI relies on.
  */
 class DemoPlayerController(
     private val scope: CoroutineScope,

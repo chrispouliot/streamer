@@ -34,6 +34,9 @@ interface LibraryRepository {
 
     suspend fun search(query: String): SearchResults
 
+    /** Records that a song started playing (local history only). */
+    fun recordPlayed(song: Song)
+
     /** Stars or unstars a song. Updates [starredSongIds] immediately and reverts if the server rejects it. */
     fun setSongStarred(songId: String, starred: Boolean)
 }
