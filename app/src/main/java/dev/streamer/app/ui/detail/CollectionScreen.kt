@@ -100,6 +100,8 @@ fun CollectionScreen(
     onRefresh: () -> Unit = {},
     downloadStatus: CollectionDownloadStatus? = null,
     downloadActions: CollectionDownloadActions? = null,
+    /** Sort control shown opposite the play buttons (top of the list on wide layouts). */
+    sortControl: (@Composable (Modifier) -> Unit)? = null,
     topActions: @Composable RowScope.() -> Unit = {},
     tracks: LazyListScope.(horizontalPadding: androidx.compose.ui.unit.Dp) -> Unit,
 ) {
@@ -146,6 +148,7 @@ fun CollectionScreen(
                         }
                     }
                     LazyColumn(Modifier.weight(1f).fillMaxSize(), contentPadding = PaddingValues(top = 56.dp, bottom = Dimens.xl + LocalFloatingPlayerHeight.current, end = Dimens.s)) {
+                        if (hasSongs && sortControl != null) item(key = "sort") { sortControl(Modifier.padding(start = Dimens.s)) }
                         if (!hasSongs) item { EmptyState("No songs", emptyMessage) }
                         tracks(Dimens.s)
                     }
@@ -171,12 +174,19 @@ fun CollectionScreen(
                                 modifier = Modifier.fillMaxWidth(),
                             )
                             if (hasSongs) {
-                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                    Spacer(Modifier.weight(1f))
+                                Row(
+                                    Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                ) {
+                                    // Sort on the left (it shrinks first), playback buttons on the right.
+                                    if (sortControl != null) sortControl(Modifier.weight(1f, fill = false)) else Spacer(Modifier)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
                                     if (downloadActions != null) CollectionDownloadButton(downloadStatus, downloadActions)
                                     ShufflePlayButton(onClick = onShuffle)
                                     Spacer(Modifier.width(Dimens.s))
                                     PlayPauseButton(isPlayingThis, onPlay, size = 64.dp)
+                                    }
                                 }
                             }
                         }

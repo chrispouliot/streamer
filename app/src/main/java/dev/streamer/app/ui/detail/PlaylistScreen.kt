@@ -1,22 +1,10 @@
 package dev.streamer.app.ui.detail
 
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -28,16 +16,19 @@ import dev.streamer.app.model.PlaylistDetail
 import dev.streamer.app.model.PlaylistEntry
 import dev.streamer.app.playback.PlaybackSource
 import dev.streamer.app.playback.PlayerController
-import dev.streamer.app.settings.PlaylistSort
 import dev.streamer.app.settings.SettingsRepository
+import dev.streamer.app.settings.TrackSort
+import dev.streamer.app.settings.TrackSortField
 import dev.streamer.app.ui.components.SongActions
 import dev.streamer.app.ui.components.SongLeading
 import dev.streamer.app.ui.components.SongRow
 import dev.streamer.app.ui.components.SyncController
+import dev.streamer.app.ui.components.TrackSortControl
 import dev.streamer.app.ui.components.appViewModel
 import dev.streamer.app.ui.components.dotJoin
 import dev.streamer.app.ui.components.formatLength
 import dev.streamer.app.ui.components.songCount
+import dev.streamer.app.ui.components.sortedForTracks
 import dev.streamer.app.ui.downloads.CollectionDownloads
 import dev.streamer.app.ui.downloads.rememberDownloadsUi
 import dev.streamer.app.ui.navigation.AppNavigator
@@ -63,12 +54,12 @@ class PlaylistViewModel(
     val sync = SyncController(library, SyncTarget.Playlist(id), viewModelScope)
 
     /** The user's choice for this playlist, or null to use [defaultSortFor]. */
-    val chosenSort: StateFlow<PlaylistSort?> = settings.playlistSort(id)
+    val chosenSort: StateFlow<TrackSort?> = settings.playlistSort(id)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val playlistId = id
 
-    fun setSort(sort: PlaylistSort) {
+    fun setSort(sort: TrackSort) {
         viewModelScope.launch { settings.setPlaylistSort(playlistId, sort) }
     }
 }
@@ -78,26 +69,12 @@ class PlaylistViewModel(
  * (such as a rule-based "loved" smart playlist, whose order is set by its rule)
  * lists newest favourites first; others list the newest additions first.
  */
-fun defaultSortFor(entries: List<PlaylistEntry>): PlaylistSort =
-    if (entries.isNotEmpty() && entries.all { it.song.favouritedAt != null }) PlaylistSort.RecentlyFavourited
-    else PlaylistSort.RecentlyAdded
+fun defaultSortFor(entries: List<PlaylistEntry>): TrackSort =
+    if (entries.isNotEmpty() && entries.all { it.song.favouritedAt != null }) TrackSort(TrackSortField.Favourited, descending = true)
+    else TrackSort(TrackSortField.Added, descending = true)
 
 /** Display order only; the server playlist is never reordered. */
-fun List<PlaylistEntry>.sortedFor(sort: PlaylistSort): List<PlaylistEntry> = when (sort) {
-    PlaylistSort.RecentlyAdded -> sortedByDescending { it.position }
-    // Newest favourites first; songs without a favourite time keep newest-added order after them.
-    PlaylistSort.RecentlyFavourited -> sortedWith(
-        compareByDescending<PlaylistEntry, java.time.Instant?>(nullsFirst()) { it.song.favouritedAt }
-            .thenByDescending { it.position },
-    )
-    PlaylistSort.PlaylistOrder -> sortedBy { it.position }
-    PlaylistSort.Title -> sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.song.title })
-    PlaylistSort.Artist -> sortedWith(
-        compareBy<PlaylistEntry, String>(String.CASE_INSENSITIVE_ORDER) { it.song.artist }
-            .thenBy(String.CASE_INSENSITIVE_ORDER) { it.song.album ?: "" }
-            .thenBy { it.song.trackNumber ?: Int.MAX_VALUE },
-    )
-}
+fun List<PlaylistEntry>.sortedFor(sort: TrackSort): List<PlaylistEntry> = sortedForTracks(sort, { it.position }, { it.song })
 
 @Composable
 fun PlaylistRoute(id: String, navigator: AppNavigator, player: PlayerController) {
@@ -111,6 +88,7 @@ fun PlaylistRoute(id: String, navigator: AppNavigator, player: PlayerController)
     val playlist = (state as? DetailState.Loaded)?.value
     val sort = chosenSort ?: defaultSortFor(playlist?.entries.orEmpty())
     val hasFavourites = remember(playlist) { playlist?.entries.orEmpty().any { it.song.favouritedAt != null } }
+    val sortFields = if (hasFavourites) TrackSortField.forPlaylists else TrackSortField.forPlaylists - TrackSortField.Favourited
     // Sorting 2000 entries is cheap, but only redo it when the data or sort changes.
     val entries = remember(playlist, sort) { playlist?.entries.orEmpty().sortedFor(sort) }
     val songs = remember(entries) { entries.map { it.song } }
@@ -160,7 +138,11 @@ fun PlaylistRoute(id: String, navigator: AppNavigator, player: PlayerController)
         downloadActions = vm.download.actions,
         refreshing = refreshing,
         onRefresh = vm.sync::refresh,
-        topActions = { if (songs.size > 1) SortMenu(sort, hasFavourites, vm::setSort) },
+        sortControl = if (songs.size > 1) {
+            { modifier -> TrackSortControl(sort, sortFields, vm::setSort, modifier) }
+        } else {
+            null
+        },
     ) { pad ->
         // Keyed by position: a playlist may contain the same song more than once.
         itemsIndexed(entries, key = { _, e -> e.position }) { i, entry ->
@@ -173,26 +155,6 @@ fun PlaylistRoute(id: String, navigator: AppNavigator, player: PlayerController)
                 actions = actions,
                 horizontalPadding = pad + Dimens.s,
             )
-        }
-    }
-}
-
-@Composable
-private fun SortMenu(sort: PlaylistSort, hasFavourites: Boolean, onSort: (PlaylistSort) -> Unit) {
-    var open by remember { mutableStateOf(false) }
-    Box {
-        TextButton(
-            onClick = { open = true },
-            modifier = Modifier.semantics { contentDescription = "Sort: ${sort.label}. Change sort order" },
-        ) { Text(sort.label) }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            PlaylistSort.entries.filter { it != PlaylistSort.RecentlyFavourited || hasFavourites }.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(option.label) },
-                    onClick = { open = false; onSort(option) },
-                    trailingIcon = { if (option == sort) Icon(Icons.Filled.Check, contentDescription = "Selected") },
-                )
-            }
         }
     }
 }

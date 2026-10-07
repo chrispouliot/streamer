@@ -12,19 +12,6 @@ import kotlinx.coroutines.flow.map
 
 enum class ThemeMode { System, Light, Dark }
 
-/**
- * How playlist songs are listed. Navidrome records playlist order but not when
- * a song was added; songs are appended, so newest first is reverse order.
- * Favourite timestamps are exact, which suits rule-based (smart) playlists.
- */
-enum class PlaylistSort(val label: String) {
-    RecentlyAdded("Recently added"),
-    RecentlyFavourited("Recently favourited"),
-    PlaylistOrder("Playlist order"),
-    Title("Title"),
-    Artist("Artist"),
-}
-
 enum class AlbumOrder(val label: String) { Name("Name"), Artist("Artist"), Year("Year"), RecentlyAdded("Recently added") }
 
 enum class ArtistOrder(val label: String) { Name("Name"), MostAlbums("Most albums") }
@@ -47,12 +34,21 @@ class SettingsRepository(context: Context) {
     }
 
     /** The sort chosen for this playlist, or null if the user hasn't chosen one. */
-    fun playlistSort(playlistId: String): Flow<PlaylistSort?> = store.data.map { prefs ->
-        prefs[playlistSortKey(playlistId)]?.let { stored -> PlaylistSort.entries.firstOrNull { it.name == stored } }
+    fun playlistSort(playlistId: String): Flow<TrackSort?> = store.data.map { prefs ->
+        prefs[playlistSortKey(playlistId)]?.let(TrackSort::decode)
     }
 
-    suspend fun setPlaylistSort(playlistId: String, sort: PlaylistSort) {
-        store.edit { it[playlistSortKey(playlistId)] = sort.name }
+    suspend fun setPlaylistSort(playlistId: String, sort: TrackSort) {
+        store.edit { it[playlistSortKey(playlistId)] = sort.encode() }
+    }
+
+    /** How album songs are ordered (one choice for all albums). */
+    val albumTrackSort: Flow<TrackSort> = store.data.map { prefs ->
+        prefs[ALBUM_TRACK_SORT]?.let(TrackSort::decode) ?: TrackSort.AlbumDefault
+    }
+
+    suspend fun setAlbumTrackSort(sort: TrackSort) {
+        store.edit { it[ALBUM_TRACK_SORT] = sort.encode() }
     }
 
     private fun playlistSortKey(playlistId: String) = stringPreferencesKey("playlist_sort:$playlistId")
@@ -84,6 +80,7 @@ class SettingsRepository(context: Context) {
 
     private companion object {
         val THEME_MODE = stringPreferencesKey("theme_mode")
+        val ALBUM_TRACK_SORT = stringPreferencesKey("album_track_sort")
         val WIFI_ONLY_DOWNLOADS = booleanPreferencesKey("wifi_only_downloads")
         val OFFLINE_ONLY = booleanPreferencesKey("offline_only")
     }
