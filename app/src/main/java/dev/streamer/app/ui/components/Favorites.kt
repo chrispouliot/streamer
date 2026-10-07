@@ -37,10 +37,8 @@ fun rememberFavorites(): Favorites {
 @Composable
 fun FavoriteButton(song: Song, favorites: Favorites, modifier: Modifier = Modifier) {
     val starred = favorites.isStarred(song)
+    // A constant label with the toggle's checked state: "Favourite, checked".
     IconToggleButton(checked = starred, onCheckedChange = { favorites.toggle(song) }, modifier = modifier) {
-        Icon(
-            if (starred) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-            contentDescription = if (starred) "Remove from favourites" else "Add to favourites",
-        )
+        Icon(if (starred) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, contentDescription = "Favourite")
     }
 }

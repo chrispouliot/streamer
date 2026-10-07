@@ -133,10 +133,13 @@ fun PlaylistRoute(id: String, navigator: AppNavigator, player: PlayerController)
                     CollectionHeader(
                         title = p.name,
                         artwork = p.artwork,
-                        byline = p.owner?.let { Byline("By $it") },
+                        byline = p.owner?.takeIf { it.isNotBlank() }?.let { Byline("By $it") },
                         meta = dotJoin(
                             "Playlist",
-                            listOfNotNull(songCount(s.value.entries.size), p.duration?.formatLength()).joinToString(", "),
+                            listOfNotNull(
+                                (s.value.entries.size.takeIf { it > 0 } ?: p.songCount)?.let(::songCount),
+                                p.duration?.formatLength(),
+                            ).joinToString(", "),
                         ),
                         description = p.comment,
                     ),

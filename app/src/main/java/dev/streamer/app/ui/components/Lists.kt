@@ -67,7 +67,8 @@ enum class SongLeading { Number, Artwork, None }
 @Composable
 fun SongRow(
     song: Song,
-    onClick: () -> Unit,
+    /** Null for rows that do nothing when tapped (e.g. the queue's current song). */
+    onClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
     leading: SongLeading = SongLeading.Artwork,
     number: Int? = song.trackNumber,
@@ -83,13 +84,14 @@ fun SongRow(
             .fillMaxWidth()
             .then(if (unavailable) Modifier.alpha(0.4f).semantics { stateDescription = "Not available offline" } else Modifier)
             .then(if (isCurrent) Modifier.background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)) else Modifier)
-            .clickable(onClick = onClick)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .then(if (isCurrent) Modifier.semantics { stateDescription = "Now playing" } else Modifier)
             .heightIn(min = 64.dp)
             .padding(start = horizontalPadding, end = Dimens.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         when (leading) {
-            SongLeading.Number -> Box(Modifier.width(32.dp), contentAlignment = Alignment.CenterStart) {
+            SongLeading.Number -> Box(Modifier.widthIn(min = 32.dp).padding(end = Dimens.xs), contentAlignment = Alignment.CenterStart) {
                 if (isCurrent) {
                     Icon(AppIcons.GraphicEq, contentDescription = "Now playing", modifier = Modifier.size(20.dp))
                 } else {
@@ -299,6 +301,8 @@ fun SectionHeader(
     modifier: Modifier = Modifier,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
+    /** Spoken label for the action, e.g. "Show all playlists". */
+    actionDescription: String? = null,
 ) {
     Row(
         modifier.fillMaxWidth().heightIn(min = Dimens.minTouchTarget),
@@ -309,11 +313,15 @@ fun SectionHeader(
             title,
             style = MaterialTheme.typography.titleLarge,
             modifier = Modifier.weight(1f).semantics { heading() },
-            maxLines = 1,
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
         if (actionLabel != null && onAction != null) {
-            TextButton(onClick = onAction, contentPadding = PaddingValues(horizontal = Dimens.s)) {
+            TextButton(
+                onClick = onAction,
+                contentPadding = PaddingValues(horizontal = Dimens.s),
+                modifier = if (actionDescription != null) Modifier.semantics { contentDescription = actionDescription } else Modifier,
+            ) {
                 Text(actionLabel, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
@@ -333,7 +341,7 @@ fun EmptyState(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Dimens.s),
     ) {
-        Text(title, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+        Text(title, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center, modifier = Modifier.semantics { heading() })
         if (message != null) {
             Text(
                 message,

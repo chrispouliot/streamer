@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -20,6 +21,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
@@ -54,6 +57,9 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -339,21 +345,31 @@ private fun AppBottomBar(selected: TopLevel, onSelect: (TopLevel) -> Unit) {
 @Composable
 private fun AppRail(selected: TopLevel, onSelect: (TopLevel) -> Unit, modifier: Modifier = Modifier) {
     NavigationRail(modifier, containerColor = MaterialTheme.colorScheme.background) {
-        listOf(TopLevel.Home, TopLevel.Search, TopLevel.Library, TopLevel.Downloads).forEach { item ->
-            NavigationRailItem(
-                selected = item == selected,
-                onClick = { onSelect(item) },
-                icon = { Icon(item.icon, contentDescription = null) },
-                label = { Text(item.label) },
-            )
+        BoxWithConstraints(Modifier.weight(1f)) {
+            // Short windows (landscape, large text): one scrolling column instead
+            // of pinning Settings to the bottom, so nothing overflows.
+            val short = maxHeight < 480.dp
+            Column(
+                Modifier.fillMaxHeight().then(if (short) Modifier.verticalScroll(rememberScrollState()) else Modifier),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                listOf(TopLevel.Home, TopLevel.Search, TopLevel.Library, TopLevel.Downloads).forEach { item ->
+                    NavigationRailItem(
+                        selected = item == selected,
+                        onClick = { onSelect(item) },
+                        icon = { Icon(item.icon, contentDescription = null) },
+                        label = { Text(item.label) },
+                    )
+                }
+                if (!short) Spacer(Modifier.weight(1f))
+                NavigationRailItem(
+                    selected = selected == TopLevel.Settings,
+                    onClick = { onSelect(TopLevel.Settings) },
+                    icon = { Icon(TopLevel.Settings.icon, contentDescription = null) },
+                    label = { Text(TopLevel.Settings.label) },
+                )
+            }
         }
-        Spacer(Modifier.weight(1f))
-        NavigationRailItem(
-            selected = selected == TopLevel.Settings,
-            onClick = { onSelect(TopLevel.Settings) },
-            icon = { Icon(TopLevel.Settings.icon, contentDescription = null) },
-            label = { Text(TopLevel.Settings.label) },
-        )
     }
 }
 
@@ -367,7 +383,8 @@ private fun TopInset(content: @Composable () -> Unit) {
 private fun ReauthBanner(reason: String, onReconnect: () -> Unit, modifier: Modifier = Modifier) {
     Surface(color = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer) {
         Row(
-            modifier.fillMaxWidth().padding(start = Dimens.l, end = Dimens.s, top = Dimens.xs, bottom = Dimens.xs),
+            modifier.fillMaxWidth().padding(start = Dimens.l, end = Dimens.s, top = Dimens.xs, bottom = Dimens.xs)
+                .semantics { liveRegion = LiveRegionMode.Polite },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -384,7 +401,8 @@ private fun ReauthBanner(reason: String, onReconnect: () -> Unit, modifier: Modi
 private fun ConnectionBanner(text: String, actionLabel: String?, onAction: (() -> Unit)?, modifier: Modifier = Modifier) {
     Surface(color = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer) {
         Row(
-            modifier.fillMaxWidth().heightIn(min = Dimens.minTouchTarget).padding(start = Dimens.l, end = Dimens.s, top = Dimens.xs, bottom = Dimens.xs),
+            modifier.fillMaxWidth().heightIn(min = Dimens.minTouchTarget).padding(start = Dimens.l, end = Dimens.s, top = Dimens.xs, bottom = Dimens.xs)
+                .semantics { liveRegion = LiveRegionMode.Polite }, // Announce going offline/online.
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(AppIcons.CloudOff, contentDescription = null)

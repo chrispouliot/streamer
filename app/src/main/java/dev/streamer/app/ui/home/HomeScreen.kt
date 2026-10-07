@@ -1,6 +1,7 @@
 package dev.streamer.app.ui.home
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -146,12 +147,12 @@ fun HomeScreen(
                     Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(start = pad, end = pad - Dimens.s),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    // Weighted so large text wraps instead of pushing the buttons off screen.
                     Text(
                         greeting(),
                         style = MaterialTheme.typography.headlineMedium,
-                        modifier = Modifier.semantics { heading() },
+                        modifier = Modifier.weight(1f).semantics { heading() },
                     )
-                    Spacer(Modifier.weight(1f))
                     if (wide) {
                         SearchLauncher(navigator::openSearch, Modifier.widthIn(max = 380.dp).weight(1f, fill = false))
                     } else {
@@ -172,17 +173,21 @@ fun HomeScreen(
             }
             if (shortcuts.isNotEmpty()) {
                 item(key = "shortcuts") {
-                    val columns = if (wide) 4 else 2
-                    Column(
-                        Modifier.padding(horizontal = pad, vertical = Dimens.s),
-                        verticalArrangement = Arrangement.spacedBy(Dimens.s),
-                    ) {
+                    BoxWithConstraints(Modifier.padding(horizontal = pad, vertical = Dimens.s)) {
+                    // From the actual width, so tiles keep room for their titles.
+                    val columns = when {
+                        maxWidth >= 900.dp -> 4
+                        maxWidth >= 560.dp -> 3
+                        else -> 2
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(Dimens.s)) {
                         shortcuts.chunked(columns).forEach { row ->
                             Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
                                 row.forEach { ShortcutTile(it.title, it.artwork, it.open, Modifier.weight(1f)) }
                                 repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                             }
                         }
+                    }
                     }
                 }
             }
@@ -191,6 +196,7 @@ fun HomeScreen(
                         "Playlists",
                         Modifier.padding(start = pad, end = pad, top = Dimens.l),
                         actionLabel = "Show all",
+                        actionDescription = "Show all playlists",
                         onAction = { navigator.openLibrary(LibraryRequest(LibraryFilter.Playlists)) },
                     ) }
                 item(key = "playlists") {
@@ -211,6 +217,7 @@ fun HomeScreen(
                         "Recently added albums",
                         Modifier.padding(start = pad, end = pad, top = Dimens.l),
                         actionLabel = "Show all",
+                        actionDescription = "Show all recently added albums",
                         onAction = { navigator.openLibrary(LibraryRequest(LibraryFilter.Albums, AlbumOrder.RecentlyAdded)) },
                     )
                 }
@@ -245,6 +252,7 @@ fun HomeScreen(
                         "Favourite songs",
                         Modifier.padding(start = pad, end = pad, top = Dimens.l),
                         actionLabel = "Show all",
+                        actionDescription = "Show all favourite songs",
                         onAction = { navigator.openLibrary(LibraryRequest(LibraryFilter.Favourites)) },
                     )
                 }

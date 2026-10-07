@@ -26,6 +26,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -138,7 +140,9 @@ fun CollectionDownloadButton(status: CollectionDownloadStatus?, actions: Collect
                 status == null -> Icon(AppIcons.Download, contentDescription = "Download")
                 status.inProgress > 0 -> CircularProgressIndicator(
                     progress = { if (status.total == 0) 0f else status.completed.toFloat() / status.total },
-                    modifier = Modifier.size(22.dp),
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clearAndSetSemantics { contentDescription = "Download options: ${status.describe()}" },
                     strokeWidth = 2.dp,
                 )
                 status.failed > 0 || (status.outOfDate && !status.keepUpdated) ->

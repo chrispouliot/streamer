@@ -2,7 +2,6 @@ package dev.streamer.app.ui.search
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
@@ -27,6 +26,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.SavedStateHandle
@@ -47,6 +50,7 @@ import dev.streamer.app.ui.components.SectionHeader
 import dev.streamer.app.ui.components.SongActions
 import dev.streamer.app.ui.components.SongRow
 import dev.streamer.app.ui.components.dotJoin
+import dev.streamer.app.ui.components.readableColumn
 import dev.streamer.app.ui.components.songCount
 import dev.streamer.app.ui.downloads.DownloadsUi
 import dev.streamer.app.ui.downloads.rememberDownloadsUi
@@ -130,13 +134,14 @@ fun SearchScreen(
     val pad = LocalShellLayout.current.pagePadding
     val focus = LocalFocusManager.current
     val downloads = rememberDownloadsUi()
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Dimens.xl + LocalFloatingPlayerHeight.current)) {
+    LazyColumn(Modifier.readableColumn(), contentPadding = PaddingValues(bottom = Dimens.xl + LocalFloatingPlayerHeight.current)) {
         item(key = "title") { ScreenTitle("Search", pad) }
         item(key = "field") {
             TextField(
                 value = query,
                 onValueChange = onQueryChange,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = pad).widthIn(max = 720.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = pad).widthIn(max = 720.dp)
+                    .semantics { contentDescription = "Search your library" },
                 placeholder = { Text("Songs, albums, artists, playlists") },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 trailingIcon = {
@@ -163,11 +168,16 @@ fun SearchScreen(
                 EmptyState("Search your library", "Find songs, albums, artists and playlists on your server.")
             }
             SearchStatus.Loading -> item(key = "loading") {
-                Box(Modifier.fillMaxWidth().padding(horizontal = pad, vertical = Dimens.l)) {
+                Box(
+                    Modifier.fillMaxWidth().padding(horizontal = pad, vertical = Dimens.l)
+                        .semantics { liveRegion = LiveRegionMode.Polite; contentDescription = "Searching" },
+                ) {
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                 }
             }
-            is SearchStatus.Failed -> item(key = "failed") { EmptyState("Search unavailable", status.message) }
+            is SearchStatus.Failed -> item(key = "failed") {
+                EmptyState("Search unavailable", status.message, Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+            }
             is SearchStatus.Done -> results(status.results, query, pad, navigator, player, downloads)
         }
     }
@@ -192,7 +202,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.results(
         }
     }
     if (results.isEmpty) {
-        item(key = "none") { EmptyState("No results", "Nothing matches “${query.trim()}”.") }
+        item(key = "none") { EmptyState(modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }, title = "No results", message = "Nothing matches “${query.trim()}”.") }
         return
     }
     val actions = SongActions(

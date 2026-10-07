@@ -45,7 +45,7 @@ fun QueueList(
         if (current != null) {
             item(key = "now-header") { QueueHeading("NOW PLAYING", horizontalPadding) }
             item(key = current.occurrenceId) {
-                SongRow(current.song, onClick = {}, isCurrent = true, horizontalPadding = horizontalPadding)
+                SongRow(current.song, onClick = null, isCurrent = true, horizontalPadding = horizontalPadding)
             }
         }
         item(key = "next-header") {

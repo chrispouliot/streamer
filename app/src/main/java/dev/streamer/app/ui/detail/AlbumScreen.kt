@@ -71,7 +71,10 @@ fun AlbumRoute(id: String, navigator: AppNavigator, player: PlayerController) {
                     meta = dotJoin(
                         "Album",
                         s.value.summary.year?.toString(),
-                        listOfNotNull(songCount(s.value.songs.size), s.value.duration?.formatLength()).joinToString(", "),
+                        listOfNotNull(
+                            (s.value.songs.size.takeIf { it > 0 } ?: s.value.summary.songCount)?.let(::songCount),
+                            s.value.duration?.formatLength(),
+                        ).joinToString(", "),
                     ),
                 ),
             )

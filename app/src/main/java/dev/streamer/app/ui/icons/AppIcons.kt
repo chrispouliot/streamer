@@ -50,6 +50,7 @@ object AppIcons {
                 "0-4-1.79-4-4s1.79-4 4-4h1.73z",
         )
     }
+    val Sort by lazy { icon("Sort", "M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z") }
     val GraphicEq by lazy {
         icon("GraphicEq", "M7 18h2V6H7v12zm4 4h2V2h-2v20zm-8-8h2v-4H3v4zm12 4h2V6h-2v12zm4-8v4h2v-4h-2z")
     }

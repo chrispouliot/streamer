@@ -4,10 +4,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -57,6 +57,7 @@ import dev.streamer.app.ui.components.SectionHeader
 import dev.streamer.app.ui.components.SongActions
 import dev.streamer.app.ui.components.SongRow
 import dev.streamer.app.ui.components.appViewModel
+import dev.streamer.app.ui.components.readableColumn
 import dev.streamer.app.ui.navigation.AppNavigator
 import dev.streamer.app.ui.navigation.LocalFloatingPlayerHeight
 import dev.streamer.app.ui.navigation.LocalShellLayout
@@ -105,7 +106,7 @@ fun DownloadsRoute(navigator: AppNavigator, player: PlayerController) {
     val storage by vm.storage.collectAsStateWithLifecycle()
     val downloads = rememberDownloadsUi()
     val pad = layout.pagePadding
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Dimens.xl + LocalFloatingPlayerHeight.current)) {
+    LazyColumn(Modifier.readableColumn(), contentPadding = PaddingValues(bottom = Dimens.xl + LocalFloatingPlayerHeight.current)) {
         if (!layout.usesRail) item { BackBar(navigator::back) }
         item { ScreenTitle("Downloads", pad) }
         item {
@@ -119,7 +120,7 @@ fun DownloadsRoute(navigator: AppNavigator, player: PlayerController) {
         }
         if (active.isNotEmpty() || failed > 0) {
             item {
-                Row(Modifier.padding(horizontal = pad - Dimens.s)) {
+                FlowRow(Modifier.padding(horizontal = pad - Dimens.s)) {
                     if (active.isNotEmpty()) {
                         val paused = active.all { it.second.state == SongDownloadState.Paused }
                         TextButton(onClick = if (paused) vm::resumeAll else vm::pauseAll) { Text(if (paused) "Resume all" else "Pause all") }
@@ -236,7 +237,8 @@ private fun DownloadedCollectionRow(
                 if (removedRemotely) "No longer on the server · ${collection.status.describe()}" else collection.status.describe(),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
             )
         }
         Box {

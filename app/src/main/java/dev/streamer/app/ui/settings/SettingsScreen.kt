@@ -2,10 +2,10 @@ package dev.streamer.app.ui.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -46,6 +46,7 @@ import dev.streamer.app.settings.ThemeMode
 import dev.streamer.app.ui.components.BackBar
 import dev.streamer.app.ui.components.ScreenTitle
 import dev.streamer.app.ui.components.appViewModel
+import dev.streamer.app.ui.components.readableColumn
 import dev.streamer.app.ui.downloads.formatBytes
 import dev.streamer.app.ui.navigation.AppNavigator
 import dev.streamer.app.ui.navigation.LocalFloatingPlayerHeight
@@ -151,7 +152,7 @@ fun SettingsScreen(
     val version = remember {
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull()
     }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Dimens.xl + LocalFloatingPlayerHeight.current)) {
+    LazyColumn(Modifier.readableColumn(), contentPadding = PaddingValues(bottom = Dimens.xl + LocalFloatingPlayerHeight.current)) {
         if (showBack) item { BackBar(onBack) }
         item { ScreenTitle("Settings", pad) }
 
@@ -176,7 +177,7 @@ fun SettingsScreen(
                 item { SettingsText("Signed out", reason, pad) }
             }
             item {
-                Row(Modifier.padding(horizontal = pad - Dimens.s), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                FlowRow(Modifier.padding(horizontal = pad - Dimens.s), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
                     TextButton(onClick = onReconnect) { Text("Reconnect") }
                     TextButton(onClick = { confirmSignOut = true }) { Text("Sign out", color = MaterialTheme.colorScheme.error) }
                 }
@@ -230,7 +231,7 @@ fun SettingsScreen(
             }
             item { SettingsText("Downloads", "${formatBytes(downloads.storageBytes)} used on this device", pad) }
             item {
-                Row(Modifier.padding(horizontal = pad - Dimens.s), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                FlowRow(Modifier.padding(horizontal = pad - Dimens.s), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
                     TextButton(onClick = {
                         // Temporary images only; downloads and their saved covers are kept.
                         val loader = SingletonImageLoader.get(context)

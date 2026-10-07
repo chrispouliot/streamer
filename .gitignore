@@ -21,3 +21,6 @@ captures/
 .idea/
 *.iml
 .vscode/
+
+# Design review captures (scripts/capture-screens.sh)
+screenshots/

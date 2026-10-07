@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -20,8 +21,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -40,6 +46,12 @@ import dev.streamer.app.ui.theme.OverlineStyle
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 
+/**
+ * Secondary text on player surfaces: the content colour at reduced alpha. On
+ * artwork-tinted backgrounds this keeps more contrast than onSurfaceVariant.
+ */
+internal const val SECONDARY_ALPHA = 0.8f
+
 fun PlaybackSource.overline(): String = when (this) {
     is PlaybackSource.Album -> "PLAYING FROM ALBUM"
     is PlaybackSource.Playlist -> "PLAYING FROM PLAYLIST"
@@ -54,12 +66,14 @@ fun SourceHeader(source: PlaybackSource?, modifier: Modifier = Modifier) {
             Text(
                 source.overline(),
                 style = OverlineStyle,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = LocalContentColor.current.copy(alpha = SECONDARY_ALPHA),
                 maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 source.title,
                 style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.semantics { heading() },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = TextAlign.Center,
@@ -86,8 +100,9 @@ fun TrackTitle(state: PlayerState, favorites: Favorites, modifier: Modifier = Mo
             Text(
                 state.error ?: song.artist,
                 style = if (large) MaterialTheme.typography.titleMedium else MaterialTheme.typography.bodyLarge,
-                color = if (state.error != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
+                color = if (state.error != null) MaterialTheme.colorScheme.error else LocalContentColor.current.copy(alpha = SECONDARY_ALPHA),
+                maxLines = if (state.error != null) 3 else 1,
+                modifier = if (state.error != null) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier,
                 overflow = TextOverflow.Ellipsis,
             )
         }
@@ -118,12 +133,17 @@ fun SeekBar(position: Duration, duration: Duration?, onSeek: (Duration) -> Unit,
                 activeTrackColor = MaterialTheme.colorScheme.onSurface,
                 inactiveTrackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.22f),
             ),
-            modifier = Modifier.semantics { contentDescription = "Seek" },
+            modifier = Modifier.semantics {
+                contentDescription = "Seek"
+                // Times, not just a percentage.
+                stateDescription = "${position.formatClock()} of ${duration?.formatClock() ?: "unknown length"}"
+            },
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             val shown = if (dragFraction != null && totalMs != null) (totalMs * fraction).toLong().milliseconds else position
-            Text(shown.formatClock(), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(duration?.formatClock() ?: "–:––", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            val labels = LocalContentColor.current.copy(alpha = SECONDARY_ALPHA)
+            Text(shown.formatClock(), style = MaterialTheme.typography.labelMedium, color = labels, modifier = Modifier.clearAndSetSemantics { })
+            Text(duration?.formatClock() ?: "–:––", style = MaterialTheme.typography.labelMedium, color = labels, modifier = Modifier.clearAndSetSemantics { })
         }
     }
 }

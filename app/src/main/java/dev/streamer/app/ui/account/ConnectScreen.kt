@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -40,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -193,7 +195,10 @@ fun ConnectScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Go),
                 keyboardActions = KeyboardActions(onGo = { submit() }),
                 trailingIcon = {
-                    TextButton(onClick = { showPassword = !showPassword }) { Text(if (showPassword) "Hide" else "Show") }
+                    TextButton(
+                        onClick = { showPassword = !showPassword },
+                        modifier = Modifier.semantics { contentDescription = if (showPassword) "Hide password" else "Show password" },
+                    ) { Text(if (showPassword) "Hide" else "Show") }
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -208,7 +213,8 @@ fun ConnectScreen(
             Button(
                 onClick = submit,
                 enabled = !state.connecting && address.isNotBlank() && username.isNotBlank() && password.isNotEmpty() && (!isHttp || allowHttp),
-                modifier = Modifier.fillMaxWidth().height(52.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+                    .then(if (state.connecting) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier),
             ) {
                 if (state.connecting) {
                     CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)

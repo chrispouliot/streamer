@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -36,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -50,7 +52,7 @@ import dev.streamer.app.ui.components.CoverArt
 import dev.streamer.app.ui.components.EmptyState
 import dev.streamer.app.ui.components.PlayPauseButton
 import dev.streamer.app.ui.components.Refreshable
-import dev.streamer.app.ui.components.ShuffleButton
+import dev.streamer.app.ui.components.ShufflePlayButton
 import dev.streamer.app.ui.components.SyncStatusText
 import dev.streamer.app.ui.downloads.CollectionDownloadActions
 import dev.streamer.app.ui.downloads.CollectionDownloadButton
@@ -125,11 +127,11 @@ fun CollectionScreen(
     Refreshable(refreshing, onRefresh, Modifier.fillMaxSize().background(gradient).windowInsetsPadding(WindowInsets.topBar)) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val width = maxWidth
-            if (width >= 720.dp) {
+            if (width >= 760.dp) {
                 Row(Modifier.fillMaxSize()) {
                     Column(
                         Modifier
-                            .width((width * 0.38f).coerceAtMost(400.dp))
+                            .width((width * 0.38f).coerceIn(300.dp, 400.dp))
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
                             .padding(start = Dimens.xs, bottom = Dimens.xl + LocalFloatingPlayerHeight.current),
@@ -138,9 +140,9 @@ fun CollectionScreen(
                         Column(Modifier.padding(horizontal = pad - Dimens.xs)) {
                             CoverArt(header.artwork, Modifier.fillMaxWidth().aspectRatio(1f), MaterialTheme.shapes.large, "Artwork", ArtSize.Large)
                             Spacer(Modifier.height(Dimens.l))
-                            HeaderText(header, sync, downloadStatus, if (hasSongs) downloadActions else null, center = false)
+                            HeaderText(header, sync, downloadStatus, center = false)
                             Spacer(Modifier.height(Dimens.l))
-                            if (hasSongs) WidePlayButtons(isPlayingThis, onPlay, onShuffle)
+                            if (hasSongs) WidePlayButtons(isPlayingThis, onPlay, onShuffle, downloadStatus, downloadActions)
                         }
                     }
                     LazyColumn(Modifier.weight(1f).fillMaxSize(), contentPadding = PaddingValues(top = 56.dp, bottom = Dimens.xl + LocalFloatingPlayerHeight.current, end = Dimens.s)) {
@@ -165,14 +167,14 @@ fun CollectionScreen(
                                 header,
                                 sync,
                                 downloadStatus,
-                                if (hasSongs) downloadActions else null,
                                 center = false,
                                 modifier = Modifier.fillMaxWidth(),
                             )
                             if (hasSongs) {
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                     Spacer(Modifier.weight(1f))
-                                    ShuffleButton(enabled = false, onClick = onShuffle)
+                                    if (downloadActions != null) CollectionDownloadButton(downloadStatus, downloadActions)
+                                    ShufflePlayButton(onClick = onShuffle)
                                     Spacer(Modifier.width(Dimens.s))
                                     PlayPauseButton(isPlayingThis, onPlay, size = 64.dp)
                                 }
@@ -192,28 +194,27 @@ private fun HeaderText(
     header: CollectionHeader,
     sync: SyncStatus,
     download: CollectionDownloadStatus?,
-    downloadActions: CollectionDownloadActions?,
     center: Boolean,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(Dimens.s)) {
-        // The download control sits beside the title.
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                header.title,
-                style = MaterialTheme.typography.headlineLarge,
-                textAlign = if (center) TextAlign.Center else null,
-                modifier = Modifier.weight(1f, fill = false).semantics { heading() },
-            )
-            if (downloadActions != null) {
-                Spacer(Modifier.width(Dimens.xs))
-                CollectionDownloadButton(download, downloadActions)
-            }
-        }
+        Text(
+            header.title,
+            style = MaterialTheme.typography.headlineLarge,
+            textAlign = if (center) TextAlign.Center else null,
+            modifier = Modifier.semantics { heading() },
+        )
         header.byline?.let { byline ->
             Row(
                 Modifier
-                    .then(if (byline.onClick != null) Modifier.clickable(onClick = byline.onClick) else Modifier)
+                    .heightIn(min = Dimens.minTouchTarget)
+                    .then(
+                        if (byline.onClick != null) {
+                            Modifier.clickable(onClickLabel = "Go to artist", role = Role.Button, onClick = byline.onClick)
+                        } else {
+                            Modifier
+                        },
+                    )
                     .padding(vertical = Dimens.xs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -237,14 +238,22 @@ private fun HeaderText(
 }
 
 @Composable
-private fun WidePlayButtons(isPlayingThis: Boolean, onPlay: () -> Unit, onShuffle: () -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
-        Button(onClick = onPlay, modifier = Modifier.weight(1f).height(52.dp)) {
+private fun WidePlayButtons(
+    isPlayingThis: Boolean,
+    onPlay: () -> Unit,
+    onShuffle: () -> Unit,
+    downloadStatus: CollectionDownloadStatus?,
+    downloadActions: CollectionDownloadActions?,
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(Dimens.s), verticalAlignment = Alignment.CenterVertically) {
+        Button(onClick = onPlay, modifier = Modifier.weight(1f).heightIn(min = 52.dp)) {
             Icon(if (isPlayingThis) AppIcons.Pause else Icons.Filled.PlayArrow, contentDescription = null)
             Spacer(Modifier.width(Dimens.s))
             Text(if (isPlayingThis) "Pause" else "Play")
         }
-        FilledTonalButton(onClick = onShuffle, modifier = Modifier.weight(1f).height(52.dp)) {
+        // Download sits just left of Shuffle.
+        if (downloadActions != null) CollectionDownloadButton(downloadStatus, downloadActions)
+        FilledTonalButton(onClick = onShuffle, modifier = Modifier.weight(1f).heightIn(min = 52.dp)) {
             Icon(AppIcons.Shuffle, contentDescription = null)
             Spacer(Modifier.width(Dimens.s))
             Text("Shuffle")

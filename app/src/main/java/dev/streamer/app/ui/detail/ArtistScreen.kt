@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -47,7 +48,7 @@ import dev.streamer.app.ui.components.MediaCard
 import dev.streamer.app.ui.components.PlayPauseButton
 import dev.streamer.app.ui.components.Refreshable
 import dev.streamer.app.ui.components.SectionHeader
-import dev.streamer.app.ui.components.ShuffleButton
+import dev.streamer.app.ui.components.ShufflePlayButton
 import dev.streamer.app.ui.components.SyncController
 import dev.streamer.app.ui.components.SyncStatusText
 import dev.streamer.app.ui.components.appViewModel
@@ -140,12 +141,13 @@ fun ArtistScreen(
             verticalArrangement = Arrangement.spacedBy(Dimens.s),
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Column {
+                // Compact on wide windows: Play/Shuffle stay near the artist, not at the far edge.
+                Column(Modifier.widthIn(max = 560.dp)) {
                     BackBar(onBack, Modifier.padding(start = 0.dp))
                     ArtistArt(summary.artwork, Modifier.size(160.dp))
                     Spacer(Modifier.height(Dimens.l))
                     Text(summary.name, style = MaterialTheme.typography.displaySmall, modifier = Modifier.semantics { heading() })
-                    val count = artist.albums.size
+                    val count = artist.albums.size.takeIf { it > 0 } ?: summary.albumCount ?: 0
                     Text(
                         if (count == 1) "1 album" else "$count albums",
                         style = MaterialTheme.typography.bodyMedium,
@@ -155,7 +157,7 @@ fun ArtistScreen(
                     if (artist.albums.isNotEmpty()) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Spacer(Modifier.weight(1f))
-                            ShuffleButton(enabled = false, onClick = onShuffle)
+                            ShufflePlayButton(onClick = onShuffle)
                             Spacer(Modifier.width(Dimens.s))
                             PlayPauseButton(isPlayingThis, onPlay, size = 64.dp)
                         }

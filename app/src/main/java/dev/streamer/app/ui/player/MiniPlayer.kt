@@ -15,6 +15,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -22,7 +23,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -91,8 +94,9 @@ fun MiniPlayerCard(
                     Text(
                         state.error ?: song.artist,
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (state.error != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
+                        color = if (state.error != null) MaterialTheme.colorScheme.error else LocalContentColor.current.copy(alpha = SECONDARY_ALPHA),
+                        maxLines = if (state.error != null) 2 else 1,
+                        modifier = if (state.error != null) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }

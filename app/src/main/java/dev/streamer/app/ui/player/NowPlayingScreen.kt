@@ -14,7 +14,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
@@ -33,6 +36,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.streamer.app.model.Song
 import dev.streamer.app.playback.PlayerController
@@ -78,6 +84,10 @@ private fun CompactNowPlaying(state: PlayerState, player: PlayerController, favo
             .safeDrawingPadding(),
     ) {
         val landscape = maxWidth > maxHeight
+        // Large text or a short window: let the content scroll rather than clip.
+        // Kept off otherwise, since scrolling would capture the drag-to-close gesture.
+        val tight = LocalDensity.current.fontScale > 1.3f || maxHeight < 600.dp
+        val coverSize = minOf(maxWidth - Dimens.xl * 2, maxHeight * 0.45f)
         Column(Modifier.fillMaxSize().padding(horizontal = Dimens.xl)) {
             PlayerTopBar(state, song, navigator, collapse = true)
             if (landscape) {
@@ -86,13 +96,26 @@ private fun CompactNowPlaying(state: PlayerState, player: PlayerController, favo
                     horizontalArrangement = Arrangement.spacedBy(Dimens.xxl),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    CoverArt(song.artwork, Modifier.fillMaxHeight().aspectRatio(1f), MaterialTheme.shapes.large, "Album artwork", ArtSize.Large)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                    CoverArt(song.artwork, Modifier.fillMaxHeight().aspectRatio(1f), MaterialTheme.shapes.large, null, ArtSize.Large)
+                    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Dimens.s)) {
                         TrackTitle(state, favorites)
                         SeekBar(state.position, state.duration, player::seekTo)
                         TransportControls(state, player, playSize = 64.dp)
                         QueueShortcut(navigator)
                     }
+                }
+            } else if (tight) {
+                // The top bar stays fixed (and draggable); everything else scrolls.
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                    Box(Modifier.fillMaxWidth().padding(vertical = Dimens.l), contentAlignment = Alignment.Center) {
+                        CoverArt(song.artwork, Modifier.size(coverSize), MaterialTheme.shapes.large, null, ArtSize.Large)
+                    }
+                    TrackTitle(state, favorites, Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(Dimens.l))
+                    SeekBar(state.position, state.duration, player::seekTo)
+                    Spacer(Modifier.height(Dimens.s))
+                    TransportControls(state, player)
+                    QueueShortcut(navigator, Modifier.padding(vertical = Dimens.s))
                 }
             } else {
                 Box(Modifier.weight(1f).fillMaxWidth().padding(vertical = Dimens.l), contentAlignment = Alignment.Center) {
@@ -100,8 +123,8 @@ private fun CompactNowPlaying(state: PlayerState, player: PlayerController, favo
                         song.artwork,
                         Modifier.aspectRatio(1f, matchHeightConstraintsFirst = true),
                         MaterialTheme.shapes.large,
-                        "Album artwork",
-                            ArtSize.Large,
+                        null, // The title below names it; no extra announcement.
+                        ArtSize.Large,
                     )
                 }
                 TrackTitle(state, favorites, Modifier.fillMaxWidth())
@@ -172,18 +195,23 @@ private fun ExpandedNowPlaying(state: PlayerState, player: PlayerController, fav
             color = playerTint(song.artwork),
             contentColor = MaterialTheme.colorScheme.onSurface,
         ) {
-            Column(Modifier.padding(Dimens.l), horizontalAlignment = Alignment.CenterHorizontally) {
+            BoxWithConstraints(Modifier.padding(Dimens.l)) {
+            val tight = LocalDensity.current.fontScale > 1.3f || maxHeight < 560.dp
+            val coverSize = minOf(maxWidth, 560.dp, maxHeight * 0.45f)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 PlayerTopBar(state, song, navigator, collapse = false)
                 Column(
-                    Modifier.weight(1f).widthIn(max = 560.dp).padding(horizontal = Dimens.xl),
+                    Modifier.weight(1f).widthIn(max = 560.dp).padding(horizontal = Dimens.xl)
+                        .then(if (tight) Modifier.verticalScroll(rememberScrollState()) else Modifier),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Box(Modifier.weight(1f).fillMaxWidth().padding(vertical = Dimens.l), contentAlignment = Alignment.Center) {
+                    val cover = if (tight) Modifier.padding(vertical = Dimens.l) else Modifier.weight(1f).padding(vertical = Dimens.l)
+                    Box(cover.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         CoverArt(
                             song.artwork,
-                            Modifier.aspectRatio(1f, matchHeightConstraintsFirst = true),
+                            if (tight) Modifier.size(coverSize) else Modifier.aspectRatio(1f, matchHeightConstraintsFirst = true),
                             MaterialTheme.shapes.large,
-                            "Album artwork",
+                            null,
                             ArtSize.Large,
                         )
                     }
@@ -192,6 +220,7 @@ private fun ExpandedNowPlaying(state: PlayerState, player: PlayerController, fav
                     SeekBar(state.position, state.duration, player::seekTo)
                     TransportControls(state, player, Modifier.padding(vertical = Dimens.m))
                 }
+            }
             }
         }
         Surface(
@@ -204,7 +233,7 @@ private fun ExpandedNowPlaying(state: PlayerState, player: PlayerController, fav
                 Text(
                     "Up next",
                     style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(start = Dimens.xl, top = Dimens.xl, end = Dimens.xl),
+                    modifier = Modifier.semantics { heading() }.padding(start = Dimens.xl, top = Dimens.xl, end = Dimens.xl),
                 )
                 QueueList(state, player, Modifier.fillMaxSize(), horizontalPadding = Dimens.xl)
             }

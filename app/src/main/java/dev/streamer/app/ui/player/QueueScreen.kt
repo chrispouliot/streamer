@@ -21,6 +21,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import dev.streamer.app.playback.PlayerController
 import dev.streamer.app.playback.PlayerState
 import dev.streamer.app.ui.components.Favorites
@@ -42,7 +44,7 @@ fun QueueScreen(state: PlayerState, player: PlayerController, favorites: Favorit
             IconButton(onClick = navigator::back) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
-            Text("Queue", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            Text("Queue", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f).semantics { heading() })
             if (state.hasQueue) {
                 TextButton(onClick = { confirmClear = true }) { Text("Clear") }
             }

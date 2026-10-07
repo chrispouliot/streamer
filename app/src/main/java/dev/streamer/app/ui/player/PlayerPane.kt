@@ -20,6 +20,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.streamer.app.playback.PlayerController
 import dev.streamer.app.playback.PlayerState
@@ -75,7 +77,7 @@ fun PlayerPanePanel(
     ) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(Dimens.xl)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Now playing", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                Text("Now playing", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f).semantics { heading() })
                 IconButton(onClick = onExpand) { Icon(AppIcons.OpenInFull, contentDescription = "Open full player") }
             }
             Spacer(Modifier.height(Dimens.s))
@@ -88,7 +90,7 @@ fun PlayerPanePanel(
             val next = state.upNext.take(3)
             if (next.isNotEmpty()) {
                 Spacer(Modifier.height(Dimens.l))
-                Text("Next up", style = MaterialTheme.typography.titleSmall)
+                Text("Next up", style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
                 next.forEach { item ->
                     SongRow(
                         item.song,

@@ -1,7 +1,11 @@
 package dev.streamer.app.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
@@ -102,5 +106,24 @@ private fun ToggleIconButton(
         } else {
             IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f), containerColor = Color.Transparent)
         },
-    ) { content() }
+    ) {
+        // A dot under the icon marks "on", so the state doesn't rely on a faint background alone.
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            content()
+            Box(
+                Modifier
+                    .padding(top = 2.dp)
+                    .size(4.dp)
+                    .background(if (active) MaterialTheme.colorScheme.onSurface else Color.Transparent, CircleShape),
+            )
+        }
+    }
+}
+
+/** One-shot "shuffle play" for a collection (not the player's shuffle toggle). */
+@Composable
+fun ShufflePlayButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    IconButton(onClick = onClick, modifier = modifier) {
+        Icon(AppIcons.Shuffle, contentDescription = "Shuffle play")
+    }
 }

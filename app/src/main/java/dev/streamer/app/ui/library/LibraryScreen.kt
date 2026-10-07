@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -31,9 +32,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -65,6 +66,7 @@ import dev.streamer.app.ui.components.SyncController
 import dev.streamer.app.ui.components.SyncStatusText
 import dev.streamer.app.ui.components.appViewModel
 import dev.streamer.app.ui.components.dotJoin
+import dev.streamer.app.ui.components.readableColumn
 import dev.streamer.app.ui.components.songCount
 import dev.streamer.app.ui.downloads.actions
 import dev.streamer.app.ui.downloads.downloadedSections
@@ -280,7 +282,7 @@ fun LibraryScreen(
         // Every state is scrollable so pull-to-refresh works, including empty ones.
         Refreshable(refreshing, onRefresh, Modifier.fillMaxSize()) {
             when {
-                !state.loaded -> Unit
+                !state.loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
                 filter == LibraryFilter.Downloaded -> DownloadedList(pad, navigator, player)
                 filter == LibraryFilter.Songs -> SongList(state.songs, "Songs", "No songs", pad, navigator, player)
                 filter == LibraryFilter.Favourites ->
@@ -295,7 +297,7 @@ fun LibraryScreen(
                 ) {
                     items(tiles, key = { it.key }) { t -> MediaCard(t.title, t.subtitle, t.artwork, t.open, circular = t.circular) }
                 }
-                else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = Dimens.xs, bottom = bottom)) {
+                else -> LazyColumn(Modifier.readableColumn(), contentPadding = PaddingValues(top = Dimens.xs, bottom = bottom)) {
                     items(tiles, key = { it.key }) { t ->
                         MediaRow(t.title, t.subtitle, t.artwork, t.open, circular = t.circular, horizontalPadding = pad)
                     }
@@ -312,7 +314,7 @@ private fun DownloadedList(pad: androidx.compose.ui.unit.Dp, navigator: AppNavig
     val songs by container.downloads.individualSongs.collectAsStateWithLifecycle()
     val downloads = rememberDownloadsUi()
     val scope = rememberCoroutineScope()
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Dimens.xl + LocalFloatingPlayerHeight.current)) {
+    LazyColumn(Modifier.readableColumn(), contentPadding = PaddingValues(bottom = Dimens.xl + LocalFloatingPlayerHeight.current)) {
         item {
             TextButton(onClick = navigator::openDownloads, modifier = Modifier.padding(horizontal = pad - Dimens.s)) { Text("Manage downloads") }
         }
@@ -334,10 +336,10 @@ private fun ScrollableEmpty(title: String, message: String) {
 private fun <T> SortMenu(options: List<T>, selected: T, label: (T) -> String, onSelect: (T) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
-        TextButton(
-            onClick = { open = true },
-            modifier = Modifier.semantics { contentDescription = "Sort: ${label(selected)}. Change sort order" },
-        ) { Text(label(selected)) }
+        // Icon only, so the title keeps its room at large text sizes; the menu shows the choice.
+        IconButton(onClick = { open = true }) {
+            Icon(AppIcons.Sort, contentDescription = "Sort: ${label(selected)}. Change sort order")
+        }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             options.forEach { option ->
                 DropdownMenuItem(
@@ -371,7 +373,7 @@ private fun SongList(
         onOpenArtist = { s -> s.artistId?.let(navigator::openArtist) },
         downloads = downloads,
     )
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = Dimens.s, bottom = Dimens.xl + LocalFloatingPlayerHeight.current)) {
+    LazyColumn(Modifier.readableColumn(), contentPadding = PaddingValues(top = Dimens.s, bottom = Dimens.xl + LocalFloatingPlayerHeight.current)) {
         itemsIndexed(songs, key = { _, s -> s.id }) { i, song ->
             SongRow(song, onClick = { player.play(songs, i, PlaybackSource.Songs(sourceTitle)) }, actions = actions, horizontalPadding = pad)
         }
