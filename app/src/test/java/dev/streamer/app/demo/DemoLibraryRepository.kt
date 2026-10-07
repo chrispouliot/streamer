@@ -27,7 +27,8 @@ class DemoLibraryRepository(private val catalog: DemoCatalog = DemoCatalog) : Li
     override val starredSongIds = starred.asStateFlow()
     override val starredSongs = starred.map { ids -> catalog.allSongs.filter { it.id in ids } }
 
-    override fun recordPlayed(song: dev.streamer.app.model.Song) = Unit
+    override val recentCollections = flowOf(emptyList<dev.streamer.app.model.RecentCollection>())
+    override fun recordPlayed(song: dev.streamer.app.model.Song, source: dev.streamer.app.playback.PlaybackSource?) = Unit
 
     override fun setSongStarred(songId: String, starred: Boolean) {
         this.starred.update { if (starred) it + songId else it - songId }

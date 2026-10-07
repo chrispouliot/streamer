@@ -15,7 +15,7 @@ class MigrationTest {
     val helper = MigrationTestHelper(InstrumentationRegistry.getInstrumentation(), AppDatabase::class.java)
 
     @Test
-    fun v1ToLatestKeepsSongsAddsStarredAtAndHistory() {
+    fun v1ToLatestKeepsSongsAndAddsNewTables() {
         helper.createDatabase("migration-test", 1).apply {
             execSQL("INSERT INTO account (id, baseUrl, username, allowInsecureHttp, serverType, serverVersion, openSubsonic, active) VALUES ('a', 'https://x/', 'u', 0, NULL, NULL, 0, 1)")
             execSQL(
@@ -24,16 +24,18 @@ class MigrationTest {
             )
             close()
         }
-        val db = helper.runMigrationsAndValidate("migration-test", 3, true)
+        val db = helper.runMigrationsAndValidate("migration-test", 4, true)
         db.query("SELECT title, starred, starredAt FROM song WHERE id = 's1'").use { c ->
             c.moveToFirst()
             assertEquals("Kept", c.getString(0))
             assertEquals(1, c.getInt(1))
             assertEquals(true, c.isNull(2))
         }
-        db.query("SELECT COUNT(*) FROM play_history").use { c ->
-            c.moveToFirst()
-            assertEquals(0, c.getInt(0))
+        for (table in listOf("play_history", "recent_collection")) {
+            db.query("SELECT COUNT(*) FROM $table").use { c ->
+                c.moveToFirst()
+                assertEquals(0, c.getInt(0))
+            }
         }
     }
 }

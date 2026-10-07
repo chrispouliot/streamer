@@ -20,12 +20,21 @@ enum class PlayerSheet { Player, Queue }
  * the player sheet state directly. Opening any page closes the player sheet.
  */
 class AppNavigator(private val nav: NavHostController, private val sheet: MutableState<PlayerSheet?>) {
-    fun selectTopLevel(destination: TopLevel) {
+    /**
+     * Home always returns to the Home page itself; re-selecting the current tab
+     * returns to that tab's main page; switching to another tab restores where
+     * the user was in it.
+     */
+    fun selectTopLevel(destination: TopLevel, reselected: Boolean = false) {
         closePlayer()
-        nav.navigate(destination.route) {
-            popUpTo(nav.graph.findStartDestination().id) { saveState = true }
-            launchSingleTop = true
-            restoreState = true
+        when {
+            destination == TopLevel.Home -> nav.popBackStack(Routes.Home, inclusive = false)
+            reselected -> nav.popBackStack(destination.route, inclusive = false)
+            else -> nav.navigate(destination.route) {
+                popUpTo(nav.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
         }
     }
 

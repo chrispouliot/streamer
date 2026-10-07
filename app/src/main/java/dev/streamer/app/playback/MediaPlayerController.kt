@@ -36,7 +36,7 @@ class MediaPlayerController(
     private val scope: CoroutineScope,
     private val accounts: AccountRepository,
     private val store: QueueStore,
-    private val onPlayed: (Song) -> Unit,
+    private val onPlayed: (Song, PlaybackSource?) -> Unit,
 ) : PlayerController {
     private val _state = MutableStateFlow(PlayerState())
     override val state: StateFlow<PlayerState> = _state.asStateFlow()
@@ -148,7 +148,7 @@ class MediaPlayerController(
         val item = c.currentMediaItem?.toQueueItem() ?: return
         if (item.occurrenceId == lastRecordedOccurrence) return
         lastRecordedOccurrence = item.occurrenceId
-        onPlayed(item.song)
+        onPlayed(item.song, source)
     }
 
     // --- Persistence ---

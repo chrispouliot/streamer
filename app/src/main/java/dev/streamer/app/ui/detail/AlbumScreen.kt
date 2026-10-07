@@ -51,7 +51,7 @@ fun AlbumRoute(id: String, navigator: AppNavigator, player: PlayerController) {
                     artwork = s.value.summary.artwork,
                     byline = Byline(
                         s.value.summary.artist,
-                        artwork = Artwork(null, s.value.summary.artistId ?: s.value.summary.artist),
+                        artwork = s.value.artistArtwork ?: Artwork(null, s.value.summary.artistId ?: s.value.summary.artist),
                         onClick = s.value.summary.artistId?.let { aid -> { navigator.openArtist(aid) } },
                     ),
                     meta = dotJoin(

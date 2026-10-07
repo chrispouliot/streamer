@@ -135,6 +135,17 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun albumDetailIncludesArtistArtworkFetchedOnDemand() = runBlocking {
+        responses = mapOf(
+            "getAlbum" to ""","album":{"id":"al1","name":"Album","artist":"Band","artistId":"ar1","song":[{"id":"s1","title":"One"}]}""",
+            "getArtist" to ""","artist":{"id":"ar1","name":"Band","coverArt":"ar-ar1_0","albumCount":1,"album":[]}""",
+        )
+        connect()
+        val detail = repo.album("al1").firstMatching { it?.artistArtwork?.coverArtId != null }!!
+        assertEquals("ar-ar1_0", detail.artistArtwork!!.coverArtId)
+    }
+
+    @Test
     fun unavailablePlaylistEmitsNullOnceTheAttemptFails() = runBlocking {
         responses = mapOf("getPlaylist" to null) // HTTP 500 for every attempt.
         connect()

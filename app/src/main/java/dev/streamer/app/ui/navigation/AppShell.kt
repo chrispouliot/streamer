@@ -161,7 +161,7 @@ private fun AppFrame(player: PlayerController) {
 
         CompositionLocalProvider(LocalShellLayout provides layout) {
             Row(Modifier.fillMaxSize()) {
-                if (showRail) AppRail(selected, navigator::selectTopLevel, Modifier.onSizeChanged { railWidthPx = it.width })
+                if (showRail) AppRail(selected, { navigator.selectTopLevel(it, reselected = it == selected) }, Modifier.onSizeChanged { railWidthPx = it.width })
                 Column(Modifier.weight(1f)) {
                     // The mini-player floats over the bottom of the content; pages
                     // scroll underneath it and pad their ends by its height.
@@ -198,7 +198,7 @@ private fun AppFrame(player: PlayerController) {
                             )
                         }
                     }
-                    if (showBar) AppBottomBar(selected, navigator::selectTopLevel)
+                    if (showBar) AppBottomBar(selected) { navigator.selectTopLevel(it, reselected = it == selected) }
                 }
                 if (showPane) PlayerPane(
                         playerState,
@@ -217,7 +217,7 @@ private fun AppFrame(player: PlayerController) {
                 // Keep showing the last sheet while it collapses (plain holder, not state).
                 val lastSheet = remember { arrayOf(PlayerSheet.Player) }
                 if (sheet != null) lastSheet[0] = sheet
-                val tint = playerState.current?.song?.artwork?.let { playerTint(it) }
+                val tint = playerTint(playerState.current?.song?.artwork)
                 val collapsed = if (layout.playerPaneFits) {
                     paneBounds?.let { bounds ->
                         CollapsedTarget(bounds, MaterialTheme.colorScheme.surfaceContainer, Dimens.paneCorner) {
@@ -226,7 +226,7 @@ private fun AppFrame(player: PlayerController) {
                     }
                 } else {
                     miniBounds?.let { bounds ->
-                        CollapsedTarget(bounds, tint ?: MaterialTheme.colorScheme.surfaceContainer, Dimens.miniPlayerCorner) {
+                        CollapsedTarget(bounds, tint, Dimens.miniPlayerCorner) {
                             MiniPlayerCard(playerState, player, favorites, onOpen = {}, modifier = Modifier.fillMaxSize())
                         }
                     }

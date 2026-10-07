@@ -96,6 +96,19 @@ class LibraryDaoTest {
     }
 
     @Test
+    fun recentCollectionsMixAlbumsAndPlaylistsByLastPlay() = runTest {
+        account("a")
+        db.library().upsertAlbums(listOf(AlbumEntity("a", "al1", "Album 1", null, null, null, null, null, null)))
+        db.library().upsertPlaylists(listOf(playlist("a", "p1")))
+        db.library().upsertRecentCollection(dev.streamer.app.data.local.RecentCollectionEntity("a", "album", "al1", 100))
+        db.library().upsertRecentCollection(dev.streamer.app.data.local.RecentCollectionEntity("a", "playlist", "p1", 200))
+        // Playing the album again moves it ahead; one row per collection.
+        db.library().upsertRecentCollection(dev.streamer.app.data.local.RecentCollectionEntity("a", "album", "al1", 300))
+        assertEquals(listOf(300L), db.library().observeRecentAlbums("a", 4).first().map { it.playedAtMillis })
+        assertEquals(listOf("p1"), db.library().observeRecentPlaylists("a", 4).first().map { it.playlist.id })
+    }
+
+    @Test
     fun starredReplacementClearsOldStars() = runTest {
         account("a")
         db.library().upsertSongs(listOf(song("a", "1").copy(starred = true), song("a", "2")))

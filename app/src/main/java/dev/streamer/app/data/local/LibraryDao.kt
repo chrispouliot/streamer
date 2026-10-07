@@ -98,6 +98,24 @@ interface LibraryDao {
     @androidx.room.Insert
     suspend fun insertHistory(entry: PlayHistoryEntity)
 
+    @Upsert
+    suspend fun upsertRecentCollection(entry: RecentCollectionEntity)
+
+    @Query(
+        """SELECT r.playedAtMillis AS playedAtMillis, a.* FROM recent_collection r
+           JOIN album a ON a.accountId = r.accountId AND a.id = r.collectionId
+           WHERE r.accountId = :acc AND r.kind = 'album' ORDER BY r.playedAtMillis DESC LIMIT :limit""",
+    )
+    fun observeRecentAlbums(acc: String, limit: Int): Flow<List<RecentAlbum>>
+
+    @Query(
+        """SELECT r.playedAtMillis AS playedAtMillis, p.* FROM recent_collection r
+           JOIN playlist p ON p.accountId = r.accountId AND p.id = r.collectionId
+           WHERE r.accountId = :acc AND r.kind = 'playlist' AND p.removedRemotely = 0
+           ORDER BY r.playedAtMillis DESC LIMIT :limit""",
+    )
+    fun observeRecentPlaylists(acc: String, limit: Int): Flow<List<RecentPlaylist>>
+
     @Query(
         """DELETE FROM play_history WHERE accountId = :acc AND rowId NOT IN
            (SELECT rowId FROM play_history WHERE accountId = :acc ORDER BY playedAtMillis DESC LIMIT :keep)""",

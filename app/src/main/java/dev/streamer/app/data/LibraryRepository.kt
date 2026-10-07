@@ -6,8 +6,10 @@ import dev.streamer.app.model.ArtistDetail
 import dev.streamer.app.model.ArtistSummary
 import dev.streamer.app.model.PlaylistDetail
 import dev.streamer.app.model.PlaylistSummary
+import dev.streamer.app.model.RecentCollection
 import dev.streamer.app.model.SearchResults
 import dev.streamer.app.model.Song
+import dev.streamer.app.playback.PlaybackSource
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -34,8 +36,11 @@ interface LibraryRepository {
 
     suspend fun search(query: String): SearchResults
 
-    /** Records that a song started playing (local history only). */
-    fun recordPlayed(song: Song)
+    /** Albums and playlists most recently played from, newest first. */
+    val recentCollections: Flow<List<RecentCollection>>
+
+    /** Records that a song started playing, and the album/playlist it was played from (local history only). */
+    fun recordPlayed(song: Song, source: PlaybackSource?)
 
     /** Stars or unstars a song. Updates [starredSongIds] immediately and reverts if the server rejects it. */
     fun setSongStarred(songId: String, starred: Boolean)

@@ -18,6 +18,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -27,8 +29,8 @@ import androidx.compose.ui.unit.dp
 import dev.streamer.app.playback.PlaybackSource
 import dev.streamer.app.playback.PlayerController
 import dev.streamer.app.playback.PlayerState
-import dev.streamer.app.ui.components.Favorites
 import dev.streamer.app.ui.components.FavoriteButton
+import dev.streamer.app.ui.components.Favorites
 import dev.streamer.app.ui.components.PlayPauseButton
 import dev.streamer.app.ui.components.RepeatButton
 import dev.streamer.app.ui.components.ShuffleButton
@@ -69,7 +71,11 @@ fun SourceHeader(source: PlaybackSource?, modifier: Modifier = Modifier) {
 @Composable
 fun TrackTitle(state: PlayerState, favorites: Favorites, modifier: Modifier = Modifier, large: Boolean = true) {
     val song = state.current?.song ?: return
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+    val reportAnchor = LocalCollapseAnchor.current
+    Row(
+        modifier.then(if (reportAnchor != null) Modifier.onGloballyPositioned { reportAnchor(it.boundsInRoot()) } else Modifier),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Column(Modifier.weight(1f)) {
             Text(
                 song.title,

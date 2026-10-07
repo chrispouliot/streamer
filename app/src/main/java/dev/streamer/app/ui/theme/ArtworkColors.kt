@@ -1,13 +1,18 @@
 package dev.streamer.app.ui.theme
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.toArgb
+import androidx.core.graphics.ColorUtils
+import dev.streamer.app.LocalAppContainer
 import dev.streamer.app.model.Artwork
 
-/** Colours derived deterministically from an artwork seed. */
+/** Colours for generated placeholder artwork, derived deterministically from a seed. */
 data class ArtworkColors(val highlight: Color, val base: Color, val shadow: Color)
 
 fun artworkColors(artwork: Artwork): ArtworkColors {
@@ -23,14 +28,29 @@ fun artworkColors(artwork: Artwork): ArtworkColors {
 }
 
 /**
- * Player background tint: the artwork colour pulled strongly toward the
- * theme surface so default text colours keep their contrast.
+ * Background tint for player surfaces and detail headers: the cover's main
+ * colour (see ArtworkPalette), or the placeholder colour when there is no
+ * server artwork. Hue is kept and lightness set for the theme so default text
+ * stays readable; changes animate.
  */
 @Composable
-@ReadOnlyComposable
 fun playerTint(artwork: Artwork?): Color {
-    val surface = MaterialTheme.colorScheme.surfaceContainer
-    if (artwork == null) return surface
-    val base = artworkColors(artwork).base
-    return if (LocalDarkTheme.current) lerp(Color.Black, base, 0.42f) else lerp(Color.White, base, 0.24f)
+    val palette = LocalAppContainer.current.artworkPalette
+    val dark = LocalDarkTheme.current
+    val neutral = MaterialTheme.colorScheme.surfaceContainer
+    val placeholder = artwork?.takeIf { it.coverArtId == null }?.let { artworkColors(it).base.toArgb() }
+    val main by produceState(initialValue = artwork?.let { palette.cached(it) } ?: placeholder, artwork) {
+        value = artwork?.let { palette.mainColor(it) } ?: artwork?.let { artworkColors(it).base.toArgb() }
+    }
+    val target = main?.let { themeTint(it, dark) } ?: neutral
+    val animated by animateColorAsState(target, tween(400), label = "playerTint")
+    return animated
+}
+
+/** Same hue, saturation capped, lightness fixed for the theme. */
+fun themeTint(argb: Int, dark: Boolean): Color {
+    val hsl = FloatArray(3)
+    ColorUtils.colorToHSL(argb, hsl)
+    val saturation = if (dark) hsl[1].coerceAtMost(0.6f) else hsl[1].coerceAtMost(0.5f)
+    return Color(ColorUtils.HSLToColor(floatArrayOf(hsl[0], saturation, if (dark) 0.2f else 0.86f)))
 }

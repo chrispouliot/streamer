@@ -39,6 +39,8 @@ data class AlbumDetail(
     val summary: AlbumSummary,
     val duration: Duration?,
     val songs: List<Song>,
+    /** The album artist's picture, when known. */
+    val artistArtwork: Artwork? = null,
 )
 
 data class ArtistSummary(
@@ -70,6 +72,12 @@ data class PlaylistDetail(
     val summary: PlaylistSummary,
     val entries: List<PlaylistEntry>,
 )
+
+/** An album or playlist the user recently played from. */
+sealed interface RecentCollection {
+    data class Album(val album: AlbumSummary) : RecentCollection
+    data class Playlist(val playlist: PlaylistSummary) : RecentCollection
+}
 
 data class SearchResults(
     val songs: List<Song> = emptyList(),

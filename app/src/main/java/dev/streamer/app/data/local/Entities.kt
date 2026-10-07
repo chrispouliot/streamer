@@ -148,4 +148,21 @@ data class PlayHistoryEntity(
     val playedAtMillis: Long,
 )
 
+/** Albums and playlists played from, latest play time per collection (schema v4). */
+@Entity(
+    tableName = "recent_collection",
+    primaryKeys = ["accountId", "kind", "collectionId"],
+    foreignKeys = [ForeignKey(AccountEntity::class, ["id"], [ACCOUNT_FK], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("accountId", "playedAtMillis")],
+)
+data class RecentCollectionEntity(val accountId: String, val kind: String, val collectionId: String, val playedAtMillis: Long) {
+    companion object {
+        const val ALBUM = "album"
+        const val PLAYLIST = "playlist"
+    }
+}
+
+data class RecentAlbum(val playedAtMillis: Long, @Embedded val album: AlbumEntity)
+data class RecentPlaylist(val playedAtMillis: Long, @Embedded val playlist: PlaylistEntity)
+
 data class PositionedSong(val position: Int, @Embedded val song: SongEntity)

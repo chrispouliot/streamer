@@ -8,6 +8,7 @@ import dev.streamer.app.data.account.SessionState
 import dev.streamer.app.data.local.AlbumSongEntity
 import dev.streamer.app.data.local.LibraryDao
 import dev.streamer.app.data.local.PlayHistoryEntity
+import dev.streamer.app.data.local.RecentCollectionEntity
 import dev.streamer.app.data.local.PlaylistEntryEntity
 import dev.streamer.app.data.local.SyncStateEntity
 import dev.streamer.app.data.remote.ApiError
@@ -18,8 +19,10 @@ import dev.streamer.app.model.AlbumDetail
 import dev.streamer.app.model.ArtistDetail
 import dev.streamer.app.model.PlaylistDetail
 import dev.streamer.app.model.PlaylistEntry
+import dev.streamer.app.model.RecentCollection
 import dev.streamer.app.model.SearchResults
 import dev.streamer.app.model.Song
+import dev.streamer.app.playback.PlaybackSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -84,11 +87,28 @@ class NavidromeLibraryRepository(
         dao.observeRecentlyPlayed(acc, limit = 20).map { list -> list.map { it.toModel() } }
     }
 
-    override fun recordPlayed(song: Song) {
+    override val recentCollections: Flow<List<RecentCollection>> = observe(emptyList()) { acc ->
+        combine(dao.observeRecentAlbums(acc, RECENT_COLLECTIONS), dao.observeRecentPlaylists(acc, RECENT_COLLECTIONS)) { albums, playlists ->
+            (albums.map { it.playedAtMillis to RecentCollection.Album(it.album.toModel()) } +
+                playlists.map { it.playedAtMillis to RecentCollection.Playlist(it.playlist.toModel()) })
+                .sortedByDescending { it.first }
+                .take(RECENT_COLLECTIONS)
+                .map { it.second }
+        }
+    }
+
+    override fun recordPlayed(song: Song, source: PlaybackSource?) {
         val acc = song.artwork.accountId ?: (accounts.state.value as? SessionState.Active)?.account?.id ?: return
+        val now = clock()
+        val collection = when (source) {
+            is PlaybackSource.Album -> RecentCollectionEntity(acc, RecentCollectionEntity.ALBUM, source.id, now)
+            is PlaybackSource.Playlist -> RecentCollectionEntity(acc, RecentCollectionEntity.PLAYLIST, source.id, now)
+            else -> null
+        }
         scope.launch(Dispatchers.Default) {
             try {
-                dao.insertHistory(PlayHistoryEntity(accountId = acc, songId = song.id, playedAtMillis = clock()))
+                dao.insertHistory(PlayHistoryEntity(accountId = acc, songId = song.id, playedAtMillis = now))
+                collection?.let { dao.upsertRecentCollection(it) }
                 dao.pruneHistory(acc, keep = 500)
             } catch (e: SQLException) {
                 // Account removed meanwhile.
@@ -128,7 +148,16 @@ class NavidromeLibraryRepository(
                     )
                 }
             }.awaitFirstAttempt(acc, key) { it == null || it.songs.isEmpty() }
+                .flatMapLatest { detail -> withArtistArtwork(acc, detail) }
         }
+    }
+
+    /** Adds the album artist's picture from the cache, fetching that artist if it isn't cached yet. */
+    private fun withArtistArtwork(acc: String, detail: AlbumDetail?): Flow<AlbumDetail?> {
+        val artistId = detail?.summary?.artistId ?: return flowOf(detail)
+        return dao.observeArtist(acc, artistId)
+            .map { artist -> detail.copy(artistArtwork = artist?.toModel()?.artwork) }
+            .onStart { refresh("artist:$artistId", 10.minutes) { a, auth -> syncArtist(a, auth, artistId) } }
     }
 
     override fun artist(id: String): Flow<ArtistDetail?> {
@@ -350,6 +379,7 @@ class NavidromeLibraryRepository(
 
     private companion object {
         const val PAGE = 500
+        const val RECENT_COLLECTIONS = 4
         const val MAX_PAGES = 200
         const val PLAYLISTS = "playlists"
         const val NEWEST = "newest"

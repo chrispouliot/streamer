@@ -38,6 +38,7 @@ import dev.streamer.app.data.LibraryRepository
 import dev.streamer.app.model.AlbumSummary
 import dev.streamer.app.model.Artwork
 import dev.streamer.app.model.PlaylistSummary
+import dev.streamer.app.model.RecentCollection
 import dev.streamer.app.model.Song
 import dev.streamer.app.playback.PlaybackSource
 import dev.streamer.app.playback.PlayerController
@@ -67,9 +68,11 @@ data class HomeUiState(
     val recentAlbums: List<AlbumSummary> = emptyList(),
     val recentlyPlayed: List<Song> = emptyList(),
     val favourites: List<Song> = emptyList(),
+    val recentCollections: List<RecentCollection> = emptyList(),
 ) {
     val isEmpty: Boolean
-        get() = playlists.isEmpty() && recentAlbums.isEmpty() && recentlyPlayed.isEmpty() && favourites.isEmpty()
+        get() = playlists.isEmpty() && recentAlbums.isEmpty() && recentlyPlayed.isEmpty() && favourites.isEmpty() &&
+            recentCollections.isEmpty()
 }
 
 class HomeViewModel(library: LibraryRepository) : ViewModel() {
@@ -78,7 +81,10 @@ class HomeViewModel(library: LibraryRepository) : ViewModel() {
         library.recentlyAddedAlbums,
         library.recentlyPlayed,
         library.starredSongs,
-    ) { playlists, albums, recent, favourites -> HomeUiState(true, playlists, albums, recent, favourites) }
+        library.recentCollections,
+    ) { playlists, albums, recent, favourites, collections ->
+        HomeUiState(true, playlists, albums, recent, favourites, collections)
+    }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 }
 
@@ -97,10 +103,13 @@ fun HomeScreen(state: HomeUiState, navigator: AppNavigator, player: PlayerContro
     val layout = LocalShellLayout.current
     val pad = layout.pagePadding
     val wide = layout.widthClass != WidthClass.Compact
-    val shortcuts = (
-        state.playlists.map { p -> Shortcut(p.name, p.artwork) { navigator.openPlaylist(p.id) } } +
-            state.recentAlbums.map { a -> Shortcut(a.name, a.artwork) { navigator.openAlbum(a.id) } }
-        ).take(6)
+    // The albums and playlists played from most recently (up to 4).
+    val shortcuts = state.recentCollections.map { c ->
+        when (c) {
+            is RecentCollection.Album -> Shortcut(c.album.name, c.album.artwork) { navigator.openAlbum(c.album.id) }
+            is RecentCollection.Playlist -> Shortcut(c.playlist.name, c.playlist.artwork) { navigator.openPlaylist(c.playlist.id) }
+        }
+    }
     val songActions = SongActions(
         onPlayNext = player::playNext,
         onAddToQueue = player::addToQueue,
@@ -139,7 +148,7 @@ fun HomeScreen(state: HomeUiState, navigator: AppNavigator, player: PlayerContro
         }
         if (shortcuts.isNotEmpty()) {
             item(key = "shortcuts") {
-                val columns = if (wide) 3 else 2
+                val columns = if (wide) 4 else 2
                 Column(
                     Modifier.padding(horizontal = pad, vertical = Dimens.s),
                     verticalArrangement = Arrangement.spacedBy(Dimens.s),

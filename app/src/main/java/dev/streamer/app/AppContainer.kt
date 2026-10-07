@@ -7,6 +7,7 @@ import dev.streamer.app.data.UserMessages
 import dev.streamer.app.data.account.AccountRepository
 import dev.streamer.app.data.account.CredentialStore
 import dev.streamer.app.data.account.KeystoreCipher
+import dev.streamer.app.data.images.ArtworkPalette
 import dev.streamer.app.data.local.AppDatabase
 import dev.streamer.app.data.remote.SubsonicClient
 import dev.streamer.app.data.repository.NavidromeLibraryRepository
@@ -32,6 +33,7 @@ class AppContainer(
     val subsonic: SubsonicClient,
     /** Application-lifetime scope for app-wide background work. */
     val scope: CoroutineScope,
+    val artworkPalette: ArtworkPalette,
 )
 
 fun createAppContainer(app: Application): AppContainer {
@@ -60,6 +62,7 @@ fun createAppContainer(app: Application): AppContainer {
         http = http,
         subsonic = subsonic,
         scope = scope,
+        artworkPalette = ArtworkPalette(app),
     )
 }
 
