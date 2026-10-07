@@ -182,6 +182,22 @@ class LibraryRepositoryTest {
     }
 
     @Test
+    fun withoutNetworkNothingIsRequestedAndStatusSaysWhy() = runBlocking {
+        responses = mapOf("getPlaylists" to ""","playlists":{"playlist":[{"id":"p1","name":"Kept"}]}""")
+        connect()
+        repo.refresh(SyncTarget.Playlists)
+        val connection = kotlinx.coroutines.flow.MutableStateFlow(Connection.NoNetwork)
+        val offlineRepo = NavidromeLibraryRepository(accounts, db.library(), SubsonicClient(OkHttpClient()), UserMessages(), scope, connection = connection)
+        db.library().upsertSyncState(SyncStateEntity(currentAccountId(), "playlists", 0)) // Stale.
+        val before = server.requestCount
+        assertEquals(listOf("Kept"), offlineRepo.playlists.firstMatching { it.isNotEmpty() }.map { it.name })
+        assertTrue(offlineRepo.refresh(SyncTarget.Playlists)!!.contains("network"))
+        assertEquals(Connection.NoNetwork, offlineRepo.syncStatus(SyncTarget.Playlists).firstMatching { true }.connection)
+        delay(300)
+        assertEquals("No requests without a network", before, server.requestCount)
+    }
+
+    @Test
     fun unavailablePlaylistEmitsNullOnceTheAttemptFails() = runBlocking {
         responses = mapOf("getPlaylist" to null) // HTTP 500 for every attempt.
         connect()

@@ -163,6 +163,102 @@ interface LibraryDao {
     @Query("SELECT COUNT(*) FROM song WHERE accountId = :acc")
     suspend fun songCount(acc: String): Int
 
+    // --- Downloads ---
+
+    @Upsert suspend fun upsertDownloadRefs(refs: List<DownloadRefEntity>)
+
+    @Query("DELETE FROM download_ref WHERE accountId = :acc AND owner = :owner AND songId IN (:songIds)")
+    suspend fun deleteDownloadRefs(acc: String, owner: String, songIds: List<String>)
+
+    @Query("DELETE FROM download_ref WHERE accountId = :acc AND owner = :owner")
+    suspend fun deleteDownloadRefsFor(acc: String, owner: String)
+
+    @Query("SELECT songId FROM download_ref WHERE accountId = :acc AND owner = :owner")
+    suspend fun downloadRefSongIds(acc: String, owner: String): List<String>
+
+    @Query("SELECT owner FROM download_ref WHERE accountId = :acc AND songId = :songId")
+    suspend fun downloadOwners(acc: String, songId: String): List<String>
+
+    @Query("DELETE FROM download_ref WHERE accountId = :acc AND songId = :songId")
+    suspend fun deleteAllDownloadRefsForSong(acc: String, songId: String)
+
+    @Query("UPDATE downloaded_collection SET stopped = :stopped WHERE accountId = :acc AND kind = :kind AND collectionId = :id")
+    suspend fun setCollectionStopped(acc: String, kind: String, id: String, stopped: Boolean)
+
+    /** Of [songIds], those no download reference keeps any more. */
+    @Query("SELECT id FROM song WHERE accountId = :acc AND id IN (:songIds) AND id NOT IN (SELECT songId FROM download_ref WHERE accountId = :acc)")
+    suspend fun unreferencedSongIds(acc: String, songIds: List<String>): List<String>
+
+    @Query("SELECT DISTINCT songId FROM download_ref WHERE accountId = :acc")
+    suspend fun referencedSongIds(acc: String): List<String>
+
+    @Query("SELECT * FROM download_ref WHERE accountId = :acc")
+    fun observeDownloadRefs(acc: String): Flow<List<DownloadRefEntity>>
+
+    @Upsert suspend fun upsertDownloadedCollection(collection: DownloadedCollectionEntity)
+
+    @Query("DELETE FROM downloaded_collection WHERE accountId = :acc AND kind = :kind AND collectionId = :id")
+    suspend fun deleteDownloadedCollection(acc: String, kind: String, id: String)
+
+    @Query("SELECT * FROM downloaded_collection WHERE accountId = :acc AND kind = :kind AND collectionId = :id")
+    suspend fun downloadedCollection(acc: String, kind: String, id: String): DownloadedCollectionEntity?
+
+    @Query("SELECT * FROM downloaded_collection WHERE accountId = :acc")
+    suspend fun downloadedCollections(acc: String): List<DownloadedCollectionEntity>
+
+    @Query("SELECT * FROM downloaded_collection WHERE accountId = :acc AND kind = :kind AND collectionId = :id")
+    fun observeDownloadedCollection(acc: String, kind: String, id: String): Flow<DownloadedCollectionEntity?>
+
+    @Query("DELETE FROM download_ref WHERE accountId = :acc")
+    suspend fun clearDownloadRefs(acc: String)
+
+    @Query("DELETE FROM downloaded_collection WHERE accountId = :acc")
+    suspend fun clearDownloadedCollections(acc: String)
+
+    @Query("SELECT * FROM album WHERE accountId = :acc AND id IN (:ids)")
+    suspend fun albums(acc: String, ids: List<String>): List<AlbumEntity>
+
+    @Query("SELECT * FROM playlist WHERE accountId = :acc AND id IN (:ids)")
+    suspend fun playlists(acc: String, ids: List<String>): List<PlaylistEntity>
+
+    /** Cover IDs used by downloaded songs and collections, for pruning stored artwork. */
+    @Query(
+        """SELECT coverArt FROM song WHERE accountId = :acc AND coverArt IS NOT NULL AND id IN (SELECT songId FROM download_ref WHERE accountId = :acc)
+           UNION SELECT a.coverArt FROM album a JOIN downloaded_collection d ON d.accountId = a.accountId AND d.collectionId = a.id AND d.kind = 'album' WHERE a.accountId = :acc AND a.coverArt IS NOT NULL
+           UNION SELECT p.coverArt FROM playlist p JOIN downloaded_collection d ON d.accountId = p.accountId AND d.collectionId = p.id AND d.kind = 'playlist' WHERE p.accountId = :acc AND p.coverArt IS NOT NULL""",
+    )
+    suspend fun downloadedCoverArtIds(acc: String): List<String>
+
+    @Query("SELECT * FROM downloaded_collection WHERE accountId = :acc ORDER BY addedAtMillis DESC")
+    fun observeDownloadedCollections(acc: String): Flow<List<DownloadedCollectionEntity>>
+
+    @Query("SELECT DISTINCT s.* FROM song s JOIN download_ref r ON r.accountId = s.accountId AND r.songId = s.id WHERE s.accountId = :acc ORDER BY s.title COLLATE NOCASE")
+    fun observeDownloadedSongs(acc: String): Flow<List<SongEntity>>
+
+    @Query("SELECT s.* FROM song s JOIN download_ref r ON r.accountId = s.accountId AND r.songId = s.id WHERE s.accountId = :acc AND r.owner = 'song' ORDER BY s.title COLLATE NOCASE")
+    fun observeIndividuallyDownloadedSongs(acc: String): Flow<List<SongEntity>>
+
+    @Query("SELECT songId FROM playlist_entry WHERE accountId = :acc AND playlistId = :playlistId ORDER BY position")
+    suspend fun playlistSongIds(acc: String, playlistId: String): List<String>
+
+    @Query("SELECT songId FROM playlist_entry WHERE accountId = :acc AND playlistId = :playlistId ORDER BY position")
+    fun observePlaylistSongIds(acc: String, playlistId: String): Flow<List<String>>
+
+    @Query("SELECT songId FROM album_song WHERE accountId = :acc AND albumId = :albumId ORDER BY position")
+    suspend fun albumSongIds(acc: String, albumId: String): List<String>
+
+    @Query("SELECT songId FROM album_song WHERE accountId = :acc AND albumId = :albumId ORDER BY position")
+    fun observeAlbumSongIds(acc: String, albumId: String): Flow<List<String>>
+
+    @Query("SELECT * FROM song WHERE accountId = :acc AND id IN (:songIds)")
+    suspend fun songs(acc: String, songIds: List<String>): List<SongEntity>
+
+    @Query("SELECT coverArt FROM album WHERE accountId = :acc AND id = :id")
+    suspend fun albumCoverArt(acc: String, id: String): String?
+
+    @Query("SELECT coverArt FROM playlist WHERE accountId = :acc AND id = :id")
+    suspend fun playlistCoverArt(acc: String, id: String): String?
+
     // --- Writes ---
 
     @Upsert suspend fun upsertSongs(songs: List<SongEntity>)
@@ -198,7 +294,11 @@ interface LibraryDao {
     @Query("UPDATE playlist SET removedRemotely = 1 WHERE accountId = :acc AND id = :id")
     suspend fun markPlaylistRemoved(acc: String, id: String)
 
-    @Query("DELETE FROM album WHERE accountId = :acc AND id NOT IN (:keepIds)")
+    /** Downloaded albums are kept even if the server no longer lists them. */
+    @Query(
+        """DELETE FROM album WHERE accountId = :acc AND id NOT IN (:keepIds)
+           AND id NOT IN (SELECT collectionId FROM downloaded_collection WHERE accountId = :acc AND kind = 'album')""",
+    )
     suspend fun deleteAlbumsExcept(acc: String, keepIds: List<String>)
 
     @Query("DELETE FROM artist WHERE accountId = :acc AND id NOT IN (:keepIds)")

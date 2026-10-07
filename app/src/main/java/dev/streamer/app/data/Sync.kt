@@ -19,6 +19,7 @@ sealed interface SyncTarget {
 /**
  * Freshness of cached data. [lastUpdated] is the oldest successful refresh
  * among the target's parts (null if one has never been fetched); [error] is
- * set when the latest attempt failed or the account needs to reconnect.
+ * set when the latest attempt failed or the account needs to reconnect;
+ * [connection] says why nothing can be refreshed right now, if so.
  */
-data class SyncStatus(val lastUpdated: Instant? = null, val error: String? = null)
+data class SyncStatus(val lastUpdated: Instant? = null, val error: String? = null, val connection: Connection = Connection.Online)

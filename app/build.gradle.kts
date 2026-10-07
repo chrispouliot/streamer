@@ -63,6 +63,7 @@ dependencies {
     implementation(libs.media3.datasource.okhttp)
     implementation(libs.kotlinx.coroutines.guava)
     implementation(libs.androidx.palette)
+    implementation(libs.androidx.work.runtime)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
     implementation(platform(libs.androidx.compose.bom))

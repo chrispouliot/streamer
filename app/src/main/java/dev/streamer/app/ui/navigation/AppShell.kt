@@ -14,9 +14,11 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -40,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -52,6 +55,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.NavHost
@@ -60,6 +64,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import dev.streamer.app.LocalAppContainer
+import dev.streamer.app.data.Connection
+import dev.streamer.app.data.SyncTarget
 import dev.streamer.app.data.account.SessionState
 import dev.streamer.app.playback.PlayerController
 import dev.streamer.app.ui.account.ConnectRoute
@@ -82,6 +88,7 @@ import dev.streamer.app.ui.search.SearchRoute
 import dev.streamer.app.ui.settings.SettingsRoute
 import dev.streamer.app.ui.theme.Dimens
 import dev.streamer.app.ui.theme.playerTint
+import kotlinx.coroutines.launch
 
 private const val EnterMillis = 150
 private const val ExitMillis = 90
@@ -128,6 +135,13 @@ private fun AppFrame(player: PlayerController) {
     val container = LocalAppContainer.current
     val session by container.accounts.state.collectAsStateWithLifecycle()
     val reauthReason = (session as? SessionState.Active)?.reauthReason
+    val connection by container.policy.connection.collectAsStateWithLifecycle()
+    // Re-check the server whenever the app comes back to the foreground.
+    LifecycleResumeEffect(container) {
+        container.serverProbe.probe()
+        onPauseOrDispose { }
+    }
+    val bannerScope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(container.messages) {
         container.messages.messages.collect { snackbar.showSnackbar(it, withDismissAction = true) }
@@ -159,7 +173,7 @@ private fun AppFrame(player: PlayerController) {
         if (!showBar) add(WindowInsetsSides.Bottom)
         val contentInsets = sides?.let { Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(it)) } ?: Modifier
 
-        CompositionLocalProvider(LocalShellLayout provides layout) {
+        CompositionLocalProvider(LocalShellLayout provides layout, LocalConnection provides connection) {
             Row(Modifier.fillMaxSize()) {
                 if (showRail) AppRail(selected, { navigator.selectTopLevel(it, reselected = it == selected) }, Modifier.onSizeChanged { railWidthPx = it.width })
                 Column(Modifier.weight(1f)) {
@@ -168,11 +182,32 @@ private fun AppFrame(player: PlayerController) {
                     Box(Modifier.weight(1f).then(contentInsets)) {
                         val floatingHeight = if (showMini) with(LocalDensity.current) { miniHeightPx.toDp() } else 0.dp
                         Column(Modifier.fillMaxSize()) {
-                            if (reauthReason != null) {
+                            val bannerShown = connection != Connection.Online || reauthReason != null
+                            val bannerInsets = Modifier.windowInsetsPadding(WindowInsets.topBar)
+                            when (connection) {
+                                Connection.OfflineMode -> ConnectionBanner(
+                                    "Offline mode · only downloaded music plays",
+                                    "Go online",
+                                    { bannerScope.launch { container.settings.setOfflineOnly(false) } },
+                                    bannerInsets,
+                                )
+                                Connection.NoNetwork -> ConnectionBanner("No connection · only downloaded music plays", null, null, bannerInsets)
+                                Connection.ServerUnreachable -> ConnectionBanner(
+                                    "Can't reach your server · only downloaded music plays",
+                                    "Retry",
+                                    {
+                                        container.serverProbe.probe()
+                                        bannerScope.launch { container.library.refresh(SyncTarget.Home) }
+                                    },
+                                    bannerInsets,
+                                )
+                                Connection.Online -> Unit
+                            }
+                            if (connection == Connection.Online && reauthReason != null) {
                                 ReauthBanner(reauthReason, navigator::openReconnect, Modifier.windowInsetsPadding(WindowInsets.topBar))
                             }
-                            // With the banner on top, pages below must not pad for the status bar again.
-                            val topConsumed = if (reauthReason != null) Modifier.consumeWindowInsets(WindowInsets.topBar) else Modifier
+                            // With a banner on top, pages below must not pad for the status bar again.
+                            val topConsumed = if (bannerShown) Modifier.consumeWindowInsets(WindowInsets.topBar) else Modifier
                             Box(Modifier.weight(1f).then(topConsumed)) {
                                 CompositionLocalProvider(LocalFloatingPlayerHeight provides floatingHeight) {
                                     AppNavHost(navController, navigator, player)
@@ -270,7 +305,7 @@ private fun AppNavHost(
         composable<Routes.Home> { TopInset { HomeRoute(navigator, player) } }
         composable<Routes.Search> { TopInset { SearchRoute(navigator, player) } }
         composable<Routes.Library> { TopInset { LibraryRoute(navigator, player) } }
-        composable<Routes.Downloads> { TopInset { DownloadsRoute(navigator) } }
+        composable<Routes.Downloads> { TopInset { DownloadsRoute(navigator, player) } }
         composable<Routes.Settings> { TopInset { SettingsRoute(navigator) } }
         // Album, artist and playlist pages draw their tinted header behind the status bar.
         composable<Routes.Album> { AlbumRoute(it.toRoute<Routes.Album>().id, navigator, player) }
@@ -341,6 +376,21 @@ private fun ReauthBanner(reason: String, onReconnect: () -> Unit, modifier: Modi
                 modifier = Modifier.weight(1f),
             )
             TextButton(onClick = onReconnect) { Text("Reconnect") }
+        }
+    }
+}
+
+@Composable
+private fun ConnectionBanner(text: String, actionLabel: String?, onAction: (() -> Unit)?, modifier: Modifier = Modifier) {
+    Surface(color = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer) {
+        Row(
+            modifier.fillMaxWidth().heightIn(min = Dimens.minTouchTarget).padding(start = Dimens.l, end = Dimens.s, top = Dimens.xs, bottom = Dimens.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(AppIcons.CloudOff, contentDescription = null)
+            Spacer(Modifier.width(Dimens.m))
+            Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            if (actionLabel != null && onAction != null) TextButton(onClick = onAction) { Text(actionLabel) }
         }
     }
 }

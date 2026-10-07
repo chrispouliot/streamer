@@ -109,6 +109,34 @@ class LibraryDaoTest {
     }
 
     @Test
+    fun songKeptByTwoCollectionsSurvivesRemovingOne() = runTest {
+        account("a")
+        val dao = db.library()
+        dao.upsertSongs(listOf(song("a", "shared"), song("a", "onlyAlbum")))
+        dao.upsertDownloadRefs(
+            listOf(
+                dev.streamer.app.data.local.DownloadRefEntity("a", "shared", "album:al"),
+                dev.streamer.app.data.local.DownloadRefEntity("a", "onlyAlbum", "album:al"),
+                dev.streamer.app.data.local.DownloadRefEntity("a", "shared", "playlist:p"),
+            ),
+        )
+        dao.deleteDownloadRefsFor("a", "album:al")
+        // Only the song no other collection keeps may be deleted.
+        assertEquals(listOf("onlyAlbum"), dao.unreferencedSongIds("a", listOf("shared", "onlyAlbum")))
+        assertEquals(setOf("shared"), dao.referencedSongIds("a").toSet())
+    }
+
+    @Test
+    fun downloadedAlbumIsKeptWhenTheServerStopsListingIt() = runTest {
+        account("a")
+        val dao = db.library()
+        dao.upsertAlbums(listOf(AlbumEntity("a", "kept", "Kept", null, null, null, null, null, null), AlbumEntity("a", "gone", "Gone", null, null, null, null, null, null)))
+        dao.upsertDownloadedCollection(dev.streamer.app.data.local.DownloadedCollectionEntity("a", "album", "kept", keepUpdated = false, addedAtMillis = 1))
+        dao.replaceAllAlbums("a", emptyList())
+        assertEquals(listOf("kept"), dao.observeAlbums("a").first().map { it.id })
+    }
+
+    @Test
     fun starredReplacementClearsOldStars() = runTest {
         account("a")
         db.library().upsertSongs(listOf(song("a", "1").copy(starred = true), song("a", "2")))

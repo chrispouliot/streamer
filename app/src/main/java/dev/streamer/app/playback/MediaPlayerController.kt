@@ -2,17 +2,20 @@ package dev.streamer.app.playback
 
 import android.content.ComponentName
 import android.content.Context
+import androidx.annotation.OptIn
 import androidx.core.content.ContextCompat
 import androidx.media3.common.C
 import androidx.media3.common.PlaybackException
-import androidx.annotation.OptIn
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
+import dev.streamer.app.data.Connection
+import dev.streamer.app.data.UserMessages
 import dev.streamer.app.data.account.AccountRepository
 import dev.streamer.app.data.account.SessionState
 import dev.streamer.app.model.Song
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -22,7 +25,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * App-side [PlayerController]: a MediaController connected to [PlaybackService].
@@ -37,6 +39,11 @@ class MediaPlayerController(
     private val accounts: AccountRepository,
     private val store: QueueStore,
     private val onPlayed: (Song, PlaybackSource?) -> Unit,
+    private val messages: UserMessages,
+    private val connection: StateFlow<Connection>,
+    private val isDownloaded: (accountId: String, songId: String) -> Boolean,
+    /** A song failed to load because the server couldn't be reached. */
+    private val onServerUnreachable: () -> Unit = {},
 ) : PlayerController {
     private val _state = MutableStateFlow(PlayerState())
     override val state: StateFlow<PlayerState> = _state.asStateFlow()
@@ -54,6 +61,9 @@ class MediaPlayerController(
     private var queue: List<QueueItem> = emptyList()
     private var playOrder: IntArray = IntArray(0)
     private var lastRecordedOccurrence: Long? = null
+
+    /** Unplayable songs skipped in a row; stops skipping once the whole queue has failed. */
+    private var consecutiveFailures = 0
     private var saveJob: Job? = null
 
     init {
@@ -73,6 +83,8 @@ class MediaPlayerController(
                     if (events.containsAny(Player.EVENT_TIMELINE_CHANGED, Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED)) {
                         rebuildQueue(c)
                     }
+                    if (events.contains(Player.EVENT_PLAYER_ERROR)) skipUnplayable(c)
+                    if (c.isPlaying) consecutiveFailures = 0
                     publish(c)
                     recordIfStarted(c)
                     scheduleSave()
@@ -200,6 +212,35 @@ class MediaPlayerController(
     override fun play(songs: List<Song>, startIndex: Int, source: PlaybackSource?, shuffle: Boolean, sourcePositions: List<Int>?) {
         if (songs.isEmpty()) return
         val accountId = songs.first().artwork.accountId ?: activeAccountId() ?: return
+        val conn = connection.value
+        if (conn != Connection.Online) {
+            // Without the server only downloaded songs can play; say what was left out.
+            val why = when (conn) {
+                Connection.OfflineMode -> "offline mode is on"
+                Connection.NoNetwork -> "there's no connection"
+                else -> "your server can't be reached"
+            }
+            val keep = songs.indices.filter { isDownloaded(songs[it].artwork.accountId ?: accountId, songs[it].id) }
+            if (keep.isEmpty()) {
+                messages.post(if (songs.size == 1) "That song isn't downloaded, and $why." else "None of these songs are downloaded, and $why.")
+                return
+            }
+            if (keep.size < songs.size) messages.post("Playing the ${keep.size} downloaded of ${songs.size} songs, as $why.")
+            val start = keep.indexOfFirst { it >= startIndex }.takeIf { it >= 0 } ?: 0
+            return playFiltered(keep.map { songs[it] }, start, source, shuffle, keep.map { sourcePositions?.getOrNull(it) ?: it }, accountId)
+        }
+        playFiltered(songs, startIndex, source, shuffle, sourcePositions, accountId)
+    }
+
+    private fun playFiltered(
+        songs: List<Song>,
+        startIndex: Int,
+        source: PlaybackSource?,
+        shuffle: Boolean,
+        sourcePositions: List<Int>?,
+        accountId: String,
+    ) {
+        consecutiveFailures = 0
         val items = songs.mapIndexed { i, song ->
             song.toMediaItem(nextOccurrenceId++, sourcePositions?.getOrNull(i) ?: i, song.artwork.accountId ?: accountId)
         }
@@ -298,6 +339,35 @@ class MediaPlayerController(
         }
         scope.launch { store.clear() }
     }
+
+    /**
+     * A song that can't be loaded (offline, server unreachable, not downloaded)
+     * is skipped with a message, once per song; after the whole queue has
+     * failed, playback stops with the reason instead of looping.
+     */
+    private fun skipUnplayable(c: MediaController) {
+        val error = c.playerError ?: return
+        if (error.errorCode !in PlaybackException.ERROR_CODE_IO_UNSPECIFIED..2999) return
+        val title = c.currentMediaItem?.mediaMetadata?.title ?: return
+        if (error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+            error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
+        ) {
+            onServerUnreachable()
+        }
+        consecutiveFailures++
+        if (consecutiveFailures >= c.mediaItemCount || !c.hasNextMediaItem()) {
+            consecutiveFailures = 0
+            messages.post("Couldn't play \u201c$title\u201d: ${describe(error).removeSuffix(" Tap play to retry.")}")
+            return
+        }
+        messages.post("Skipped \u201c$title\u201d: ${unavailableReason(error)}")
+        c.seekToNextMediaItem()
+        c.prepare()
+        c.play()
+    }
+
+    private fun unavailableReason(error: PlaybackException): String =
+        if (error.cause is OfflineModeException) "it isn't downloaded." else "it isn't downloaded and your server can't be reached."
 
     private fun indexOf(c: MediaController, occurrenceId: Long): Int? {
         val id = occurrenceId.toString()

@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Streamer</string>
+    <string name="downloads_channel_name">Downloads</string>
+    <string name="downloads_channel_description">Progress of music downloads for offline playback</string>
 </resources>

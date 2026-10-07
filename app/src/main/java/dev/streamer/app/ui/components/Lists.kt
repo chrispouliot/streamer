@@ -32,19 +32,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.streamer.app.data.Connection
 import dev.streamer.app.model.Artwork
 import dev.streamer.app.model.Song
+import dev.streamer.app.ui.downloads.DownloadsUi
 import dev.streamer.app.ui.icons.AppIcons
+import dev.streamer.app.ui.navigation.LocalConnection
 import dev.streamer.app.ui.theme.Dimens
 
 /** Per-song menu actions. A null callback hides that entry. */
@@ -53,6 +58,8 @@ data class SongActions(
     val onAddToQueue: ((Song) -> Unit)? = null,
     val onOpenAlbum: ((Song) -> Unit)? = null,
     val onOpenArtist: ((Song) -> Unit)? = null,
+    /** Shows the downloaded indicator and Download/Remove download entries. */
+    val downloads: DownloadsUi? = null,
 )
 
 enum class SongLeading { Number, Artwork, None }
@@ -69,9 +76,12 @@ fun SongRow(
     actions: SongActions = SongActions(),
     horizontalPadding: Dp = Dimens.pagePaddingCompact,
 ) {
+    // Without the server, songs that aren't downloaded won't play: show them dimmed.
+    val unavailable = LocalConnection.current != Connection.Online && actions.downloads?.isDownloaded(song) == false
     Row(
         modifier
             .fillMaxWidth()
+            .then(if (unavailable) Modifier.alpha(0.4f).semantics { stateDescription = "Not available offline" } else Modifier)
             .then(if (isCurrent) Modifier.background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f)) else Modifier)
             .clickable(onClick = onClick)
             .heightIn(min = 64.dp)
@@ -119,6 +129,14 @@ fun SongRow(
                 }
             }
         }
+        if (actions.downloads?.isDownloaded(song) == true) {
+            Icon(
+                AppIcons.DownloadDone,
+                contentDescription = "Downloaded",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = Dimens.s).size(16.dp),
+            )
+        }
         song.duration?.let {
             Text(
                 it.formatClock(),
@@ -156,6 +174,9 @@ fun SongMenu(song: Song, actions: SongActions) {
         actions.onAddToQueue?.let { add("Add to queue" to it) }
         if (song.albumId != null) actions.onOpenAlbum?.let { add("Go to album" to it) }
         if (song.artistId != null) actions.onOpenArtist?.let { add("Go to artist" to it) }
+        actions.downloads?.let { d ->
+            if (d.isDownloaded(song)) add("Remove download" to d::remove) else add("Download" to d::download)
+        }
     }
     if (items.isEmpty()) {
         Spacer(Modifier.width(Dimens.m))

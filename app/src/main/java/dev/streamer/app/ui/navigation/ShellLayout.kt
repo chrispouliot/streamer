@@ -9,6 +9,7 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.streamer.app.data.Connection
 import dev.streamer.app.ui.theme.Dimens
 
 enum class WidthClass { Compact, Medium, Expanded }
@@ -57,3 +58,6 @@ val LocalFloatingPlayerHeight = compositionLocalOf { 0.dp }
  */
 val WindowInsets.Companion.topBar: WindowInsets
     @Composable get() = safeDrawing.only(WindowInsetsSides.Top)
+
+/** Whether the server is usable right now; lists dim songs that won't play without it. */
+val LocalConnection = compositionLocalOf { Connection.Online }

@@ -3,6 +3,7 @@ package dev.streamer.app.settings
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -56,6 +57,14 @@ class SettingsRepository(context: Context) {
 
     private fun playlistSortKey(playlistId: String) = stringPreferencesKey("playlist_sort:$playlistId")
 
+    /** Download only on unmetered networks (Wi-Fi). On by default. */
+    val wifiOnlyDownloads: Flow<Boolean> = store.data.map { it[WIFI_ONLY_DOWNLOADS] ?: true }
+    suspend fun setWifiOnlyDownloads(enabled: Boolean) = store.edit { it[WIFI_ONLY_DOWNLOADS] = enabled }
+
+    /** No server requests at all: browse saved data and play downloads only. */
+    val offlineOnly: Flow<Boolean> = store.data.map { it[OFFLINE_ONLY] ?: false }
+    suspend fun setOfflineOnly(enabled: Boolean) = store.edit { it[OFFLINE_ONLY] = enabled }
+
     val albumOrder: Flow<AlbumOrder> = enumPref("album_order", AlbumOrder.Name)
     suspend fun setAlbumOrder(order: AlbumOrder) = setEnumPref("album_order", order)
 
@@ -75,5 +84,7 @@ class SettingsRepository(context: Context) {
 
     private companion object {
         val THEME_MODE = stringPreferencesKey("theme_mode")
+        val WIFI_ONLY_DOWNLOADS = booleanPreferencesKey("wifi_only_downloads")
+        val OFFLINE_ONLY = booleanPreferencesKey("offline_only")
     }
 }

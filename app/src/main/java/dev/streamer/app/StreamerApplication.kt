@@ -24,7 +24,7 @@ class StreamerApplication : Application(), SingletonImageLoader.Factory {
     override fun newImageLoader(context: PlatformContext): ImageLoader =
         ImageLoader.Builder(context)
             .components {
-                add(CoverArtMapper(container.accounts, container.subsonic))
+                add(CoverArtMapper(container.accounts, container.subsonic, container.artworkStore))
                 add(OkHttpNetworkFetcherFactory(callFactory = { container.http }))
             }
             .build()

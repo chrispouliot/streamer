@@ -48,6 +48,8 @@ import dev.streamer.app.ui.components.SongActions
 import dev.streamer.app.ui.components.SongRow
 import dev.streamer.app.ui.components.dotJoin
 import dev.streamer.app.ui.components.songCount
+import dev.streamer.app.ui.downloads.DownloadsUi
+import dev.streamer.app.ui.downloads.rememberDownloadsUi
 import dev.streamer.app.ui.navigation.AppNavigator
 import dev.streamer.app.ui.navigation.LocalFloatingPlayerHeight
 import dev.streamer.app.ui.navigation.LocalShellLayout
@@ -127,6 +129,7 @@ fun SearchScreen(
 ) {
     val pad = LocalShellLayout.current.pagePadding
     val focus = LocalFocusManager.current
+    val downloads = rememberDownloadsUi()
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Dimens.xl + LocalFloatingPlayerHeight.current)) {
         item(key = "title") { ScreenTitle("Search", pad) }
         item(key = "field") {
@@ -165,7 +168,7 @@ fun SearchScreen(
                 }
             }
             is SearchStatus.Failed -> item(key = "failed") { EmptyState("Search unavailable", status.message) }
-            is SearchStatus.Done -> results(status.results, query, pad, navigator, player)
+            is SearchStatus.Done -> results(status.results, query, pad, navigator, player, downloads)
         }
     }
 }
@@ -176,6 +179,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.results(
     pad: androidx.compose.ui.unit.Dp,
     navigator: AppNavigator,
     player: PlayerController,
+    downloads: DownloadsUi,
 ) {
     if (results.fromCache) {
         item(key = "cached") {
@@ -196,6 +200,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.results(
         onAddToQueue = player::addToQueue,
         onOpenAlbum = { s -> s.albumId?.let(navigator::openAlbum) },
         onOpenArtist = { s -> s.artistId?.let(navigator::openArtist) },
+        downloads = downloads,
     )
     if (results.songs.isNotEmpty()) {
         item(key = "songs-h") { SectionHeader("Songs", Modifier.padding(horizontal = pad, vertical = Dimens.xs)) }

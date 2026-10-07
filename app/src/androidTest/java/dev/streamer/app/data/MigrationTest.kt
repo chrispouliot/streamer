@@ -24,14 +24,14 @@ class MigrationTest {
             )
             close()
         }
-        val db = helper.runMigrationsAndValidate("migration-test", 5, true)
+        val db = helper.runMigrationsAndValidate("migration-test", 7, true)
         db.query("SELECT title, starred, starredAt FROM song WHERE id = 's1'").use { c ->
             c.moveToFirst()
             assertEquals("Kept", c.getString(0))
             assertEquals(1, c.getInt(1))
             assertEquals(true, c.isNull(2))
         }
-        for (table in listOf("play_history", "recent_collection")) {
+        for (table in listOf("play_history", "recent_collection", "download_ref", "downloaded_collection")) {
             db.query("SELECT COUNT(*) FROM $table").use { c ->
                 c.moveToFirst()
                 assertEquals(0, c.getInt(0))

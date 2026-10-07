@@ -2,14 +2,13 @@ package dev.streamer.app.playback
 
 import android.app.PendingIntent
 import android.content.Intent
-import androidx.core.net.toUri
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.ResolvingDataSource
+import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -18,15 +17,12 @@ import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
-import dev.streamer.app.AppContainer
 import dev.streamer.app.MainActivity
 import dev.streamer.app.StreamerApplication
-import dev.streamer.app.data.remote.ApiError
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import java.io.IOException
 
 /**
  * Owns the single ExoPlayer and its media session. Media notification,
@@ -41,7 +37,16 @@ class PlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         val container = (application as StreamerApplication).container
-        val dataSources = ResolvingDataSource.Factory(OkHttpDataSource.Factory(container.http)) { spec -> resolve(container, spec) }
+        val resolver = container.mediaResolver
+        // Songs with a download play from the store (topped up from the original
+        // file if incomplete; never written to); others stream.
+        val withDownload = CacheDataSource.Factory()
+            .setCache(container.downloads.cache)
+            .setCacheKeyFactory(MediaResolver.originalKeyFactory)
+            .setCacheWriteDataSinkFactory(null)
+            .setUpstreamDataSourceFactory(ResolvingDataSource.Factory(OkHttpDataSource.Factory(container.http), resolver::original))
+        val streaming = ResolvingDataSource.Factory(OkHttpDataSource.Factory(container.http), resolver::stream)
+        val dataSources = SelectingDataSource.Factory(withDownload, streaming, container.downloads::hasDownload)
         val player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(DefaultMediaSourceFactory(dataSources))
             .setAudioAttributes(
@@ -100,20 +105,5 @@ class PlaybackService : MediaSessionService() {
             controller: MediaSession.ControllerInfo,
             mediaItems: List<MediaItem>,
         ): ListenableFuture<List<MediaItem>> = Futures.immediateFuture(mediaItems.mapNotNull { it.withPlayableUri() })
-    }
-
-    /** Swaps a `streamer://` song reference for a freshly authenticated stream URL, at open time. */
-    private fun resolve(container: AppContainer, spec: DataSpec): DataSpec {
-        val (accountId, songId) = MediaUris.parse(spec.uri, MediaUris.SONG_SCHEME)
-            ?: throw IOException("Unsupported media reference")
-        val (account, auth) = container.accounts.currentAuth()
-            ?: throw IOException("Not signed in to your server.")
-        if (account.id != accountId) throw IOException("This song belongs to a different server account.")
-        val url = try {
-            container.subsonic.authenticatedUrl(auth, "stream", mapOf("id" to songId))
-        } catch (e: ApiError) {
-            throw IOException(e.message, e)
-        }
-        return spec.withUri(url.toString().toUri())
     }
 }

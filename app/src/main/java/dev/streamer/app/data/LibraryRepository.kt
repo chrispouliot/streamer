@@ -11,6 +11,7 @@ import dev.streamer.app.model.SearchResults
 import dev.streamer.app.model.Song
 import dev.streamer.app.playback.PlaybackSource
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * The music library for the UI. Flows emit cached data immediately and the
@@ -41,6 +42,9 @@ interface LibraryRepository {
 
     /** Records that a song started playing, and the album/playlist it was played from (local history only). */
     fun recordPlayed(song: Song, source: PlaybackSource?)
+
+    /** Whether the server can be used right now. */
+    val connection: StateFlow<Connection>
 
     fun syncStatus(target: SyncTarget): Flow<SyncStatus>
 

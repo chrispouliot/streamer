@@ -16,9 +16,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import coil3.compose.AsyncImage
+import coil3.request.CachePolicy
 import coil3.request.ImageRequest
+import dev.streamer.app.data.Connection
 import dev.streamer.app.data.images.CoverArtRequest
 import dev.streamer.app.model.Artwork
+import dev.streamer.app.ui.navigation.LocalConnection
 import dev.streamer.app.ui.theme.artworkColors
 
 /** Requested server image size; one cached image per bucket. */
@@ -55,12 +58,15 @@ fun CoverArt(
         val accountId = artwork.accountId
         if (coverId != null && accountId != null) {
             val context = LocalContext.current
-            val request = remember(accountId, coverId, size) {
+            val offlineMode = LocalConnection.current == Connection.OfflineMode
+            val request = remember(accountId, coverId, size, offlineMode) {
                 val data = CoverArtRequest(accountId, coverId, size.px)
                 ImageRequest.Builder(context)
                     .data(data)
                     .memoryCacheKey(data.cacheKey)
                     .diskCacheKey(data.cacheKey)
+                    // Offline mode: cached and saved covers only, no requests.
+                    .apply { if (offlineMode) networkCachePolicy(CachePolicy.DISABLED) }
                     .build()
             }
             AsyncImage(

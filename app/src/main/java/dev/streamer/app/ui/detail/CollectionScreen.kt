@@ -41,6 +41,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.streamer.app.data.SyncStatus
+import dev.streamer.app.data.downloads.CollectionDownloadStatus
 import dev.streamer.app.model.Artwork
 import dev.streamer.app.ui.components.ArtSize
 import dev.streamer.app.ui.components.ArtistArt
@@ -51,6 +52,9 @@ import dev.streamer.app.ui.components.PlayPauseButton
 import dev.streamer.app.ui.components.Refreshable
 import dev.streamer.app.ui.components.ShuffleButton
 import dev.streamer.app.ui.components.SyncStatusText
+import dev.streamer.app.ui.downloads.CollectionDownloadActions
+import dev.streamer.app.ui.downloads.CollectionDownloadButton
+import dev.streamer.app.ui.downloads.describe
 import dev.streamer.app.ui.icons.AppIcons
 import dev.streamer.app.ui.navigation.LocalFloatingPlayerHeight
 import dev.streamer.app.ui.navigation.LocalShellLayout
@@ -92,6 +96,8 @@ fun CollectionScreen(
     sync: SyncStatus = SyncStatus(),
     refreshing: Boolean = false,
     onRefresh: () -> Unit = {},
+    downloadStatus: CollectionDownloadStatus? = null,
+    downloadActions: CollectionDownloadActions? = null,
     topActions: @Composable RowScope.() -> Unit = {},
     tracks: LazyListScope.(horizontalPadding: androidx.compose.ui.unit.Dp) -> Unit,
 ) {
@@ -132,7 +138,7 @@ fun CollectionScreen(
                         Column(Modifier.padding(horizontal = pad - Dimens.xs)) {
                             CoverArt(header.artwork, Modifier.fillMaxWidth().aspectRatio(1f), MaterialTheme.shapes.large, "Artwork", ArtSize.Large)
                             Spacer(Modifier.height(Dimens.l))
-                            HeaderText(header, sync, center = false)
+                            HeaderText(header, sync, downloadStatus, if (hasSongs) downloadActions else null, center = false)
                             Spacer(Modifier.height(Dimens.l))
                             if (hasSongs) WidePlayButtons(isPlayingThis, onPlay, onShuffle)
                         }
@@ -155,7 +161,14 @@ fun CollectionScreen(
                                 ArtSize.Large,
                             )
                             Spacer(Modifier.height(Dimens.xl))
-                            HeaderText(header, sync, center = false, modifier = Modifier.fillMaxWidth())
+                            HeaderText(
+                                header,
+                                sync,
+                                downloadStatus,
+                                if (hasSongs) downloadActions else null,
+                                center = false,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
                             if (hasSongs) {
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                     Spacer(Modifier.weight(1f))
@@ -175,14 +188,28 @@ fun CollectionScreen(
 }
 
 @Composable
-private fun HeaderText(header: CollectionHeader, sync: SyncStatus, center: Boolean, modifier: Modifier = Modifier) {
+private fun HeaderText(
+    header: CollectionHeader,
+    sync: SyncStatus,
+    download: CollectionDownloadStatus?,
+    downloadActions: CollectionDownloadActions?,
+    center: Boolean,
+    modifier: Modifier = Modifier,
+) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(Dimens.s)) {
-        Text(
-            header.title,
-            style = MaterialTheme.typography.headlineLarge,
-            textAlign = if (center) TextAlign.Center else null,
-            modifier = Modifier.semantics { heading() },
-        )
+        // The download control sits beside the title.
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                header.title,
+                style = MaterialTheme.typography.headlineLarge,
+                textAlign = if (center) TextAlign.Center else null,
+                modifier = Modifier.weight(1f, fill = false).semantics { heading() },
+            )
+            if (downloadActions != null) {
+                Spacer(Modifier.width(Dimens.xs))
+                CollectionDownloadButton(download, downloadActions)
+            }
+        }
         header.byline?.let { byline ->
             Row(
                 Modifier
@@ -199,6 +226,13 @@ private fun HeaderText(header: CollectionHeader, sync: SyncStatus, center: Boole
         }
         Text(header.meta, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         SyncStatusText(sync, showWhenFine = true)
+        download?.let {
+            Text(
+                it.describe(),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (it.failed > 0 || (it.outOfDate && !it.keepUpdated)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

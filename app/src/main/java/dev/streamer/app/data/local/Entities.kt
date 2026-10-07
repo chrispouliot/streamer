@@ -167,6 +167,38 @@ data class RecentCollectionEntity(val accountId: String, val kind: String, val c
 data class RecentAlbum(val playedAtMillis: Long, @Embedded val album: AlbumEntity)
 data class RecentPlaylist(val playedAtMillis: Long, @Embedded val playlist: PlaylistEntity)
 
+/**
+ * Why a downloaded song is kept (schema v6). [owner] is "song" for an individual
+ * download, or "album:<id>" / "playlist:<id>" for a collection. A song's file
+ * is deleted only when no references remain.
+ */
+@Entity(
+    tableName = "download_ref",
+    primaryKeys = ["accountId", "songId", "owner"],
+    foreignKeys = [ForeignKey(AccountEntity::class, ["id"], [ACCOUNT_FK], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("accountId", "owner")],
+)
+data class DownloadRefEntity(val accountId: String, val songId: String, val owner: String)
+
+/** An album or playlist the user downloaded (schema v6). */
+@Entity(
+    tableName = "downloaded_collection",
+    primaryKeys = ["accountId", "kind", "collectionId"],
+    foreignKeys = [ForeignKey(AccountEntity::class, ["id"], [ACCOUNT_FK], onDelete = ForeignKey.CASCADE)],
+)
+data class DownloadedCollectionEntity(
+    val accountId: String,
+    val kind: String,
+    val collectionId: String,
+    /** Playlists only: follow server changes automatically. */
+    val keepUpdated: Boolean,
+    val addedAtMillis: Long,
+    /** The user stopped it partway (or cancelled one of its songs): keep finished songs, add nothing until resumed. Schema v7. */
+    @ColumnInfo(defaultValue = "0") val stopped: Boolean = false,
+) {
+    val owner: String get() = "$kind:$collectionId"
+}
+
 /** What's needed to notice that a server playlist changed since it was cached. */
 data class PlaylistMarker(val id: String, val changed: String?, val songCount: Int?)
 

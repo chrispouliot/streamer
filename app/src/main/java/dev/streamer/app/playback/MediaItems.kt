@@ -23,6 +23,12 @@ object MediaUris {
     fun cover(accountId: String, coverArtId: String): Uri =
         Uri.Builder().scheme(ART_SCHEME).authority("cover").appendPath(accountId).appendPath(coverArtId).build()
 
+    /**
+     * Download/cache key for a song's original file, independent of any URL.
+     * Only original bytes are ever stored under it.
+     */
+    fun originalKey(accountId: String, songId: String): String = "orig:$accountId:$songId"
+
     /** (accountId, id) for one of our URIs of the given scheme, else null. */
     fun parse(uri: Uri, scheme: String): Pair<String, String>? {
         if (uri.scheme != scheme) return null

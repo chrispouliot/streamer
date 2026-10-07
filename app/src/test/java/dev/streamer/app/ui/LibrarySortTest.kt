@@ -58,3 +58,13 @@ class LibrarySortTest {
         assertEquals("4 days ago", relativeTime(now.minus(Duration.ofDays(4)), now))
     }
 }
+
+class LibraryFilterOrderTest {
+    @Test
+    fun downloadedComesFirstOnlyWhileOffline() {
+        assertEquals(dev.streamer.app.ui.library.LibraryFilter.Playlists, dev.streamer.app.ui.library.filterOrder(offline = false).first())
+        val offline = dev.streamer.app.ui.library.filterOrder(offline = true)
+        assertEquals(dev.streamer.app.ui.library.LibraryFilter.Downloaded, offline.first())
+        assertEquals(dev.streamer.app.ui.library.LibraryFilter.entries.toSet(), offline.toSet())
+    }
+}

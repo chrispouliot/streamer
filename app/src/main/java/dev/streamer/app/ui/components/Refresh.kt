@@ -11,9 +11,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import dev.streamer.app.data.Connection
 import dev.streamer.app.data.LibraryRepository
 import dev.streamer.app.data.SyncStatus
 import dev.streamer.app.data.SyncTarget
+import java.time.Instant
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,11 +23,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.time.Instant
 
 /** Freshness and pull-to-refresh for one screen's data; owned by that screen's ViewModel. */
 class SyncController(private val library: LibraryRepository, private val target: SyncTarget, private val scope: CoroutineScope) {
-    val status: StateFlow<SyncStatus> = library.syncStatus(target).stateIn(scope, SharingStarted.WhileSubscribed(5_000), SyncStatus())
+    val status: StateFlow<SyncStatus> = library.syncStatus(target)
+        // Start with what's already known, so the status line doesn't pop in.
+        .stateIn(scope, SharingStarted.WhileSubscribed(5_000), SyncStatus(connection = library.connection.value))
 
     private val _refreshing = MutableStateFlow(false)
 
@@ -60,6 +63,12 @@ fun Refreshable(refreshing: Boolean, onRefresh: () -> Unit, modifier: Modifier =
 fun SyncStatusText(status: SyncStatus, modifier: Modifier = Modifier, showWhenFine: Boolean = false) {
     val now = Instant.now()
     val text = when {
+        // Known immediately, so these never change while the screen appears.
+        status.connection != Connection.Online -> when (status.connection) {
+            Connection.OfflineMode -> "Offline mode"
+            Connection.NoNetwork -> "No connection"
+            else -> "Can't reach your server"
+        } + " · showing saved music"
         status.error != null -> "Couldn't update · showing saved music" +
             (status.lastUpdated?.let { " from ${relativeTime(it, now)}" } ?: "")
         showWhenFine && status.lastUpdated != null -> "Updated ${relativeTime(status.lastUpdated, now)}"

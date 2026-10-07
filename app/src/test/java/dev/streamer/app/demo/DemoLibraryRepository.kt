@@ -28,6 +28,7 @@ class DemoLibraryRepository(private val catalog: DemoCatalog = DemoCatalog) : Li
     override val starredSongs = starred.map { ids -> catalog.allSongs.filter { it.id in ids } }
 
     override val recentCollections = flowOf(emptyList<dev.streamer.app.model.RecentCollection>())
+    override val connection = kotlinx.coroutines.flow.MutableStateFlow(dev.streamer.app.data.Connection.Online)
     override fun syncStatus(target: dev.streamer.app.data.SyncTarget) = flowOf(dev.streamer.app.data.SyncStatus())
     override suspend fun refresh(target: dev.streamer.app.data.SyncTarget): String? = null
 

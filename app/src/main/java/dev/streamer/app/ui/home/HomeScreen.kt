@@ -57,6 +57,7 @@ import dev.streamer.app.ui.components.SyncStatusText
 import dev.streamer.app.ui.components.appViewModel
 import dev.streamer.app.ui.components.dotJoin
 import dev.streamer.app.ui.components.songCount
+import dev.streamer.app.ui.downloads.rememberDownloadsUi
 import dev.streamer.app.ui.library.LibraryFilter
 import dev.streamer.app.ui.library.LibraryRequest
 import dev.streamer.app.ui.navigation.AppNavigator
@@ -129,11 +130,13 @@ fun HomeScreen(
             is RecentCollection.Playlist -> Shortcut(c.playlist.name, c.playlist.artwork) { navigator.openPlaylist(c.playlist.id) }
         }
     }
+    val downloads = rememberDownloadsUi()
     val songActions = SongActions(
         onPlayNext = player::playNext,
         onAddToQueue = player::addToQueue,
         onOpenAlbum = { s -> s.albumId?.let(navigator::openAlbum) },
         onOpenArtist = { s -> s.artistId?.let(navigator::openArtist) },
+        downloads = downloads,
     )
 
     Refreshable(refreshing, onRefresh, Modifier.fillMaxSize()) {
@@ -194,7 +197,7 @@ fun HomeScreen(
                     Shelf(state.playlists, key = { it.id }) { p ->
                         MediaCard(
                             p.name,
-                            p.comment ?: p.songCount?.let(::songCount),
+                            p.songCount?.let(::songCount),
                             p.artwork,
                             onClick = { navigator.openPlaylist(p.id) },
                             modifier = Modifier.width(if (wide) 200.dp else Dimens.cardWidth),

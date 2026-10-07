@@ -28,6 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -37,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import dev.streamer.app.LocalAppContainer
+import dev.streamer.app.data.Connection
 import dev.streamer.app.data.LibraryRepository
 import dev.streamer.app.data.SyncStatus
 import dev.streamer.app.data.SyncTarget
@@ -63,8 +66,12 @@ import dev.streamer.app.ui.components.SyncStatusText
 import dev.streamer.app.ui.components.appViewModel
 import dev.streamer.app.ui.components.dotJoin
 import dev.streamer.app.ui.components.songCount
+import dev.streamer.app.ui.downloads.actions
+import dev.streamer.app.ui.downloads.downloadedSections
+import dev.streamer.app.ui.downloads.rememberDownloadsUi
 import dev.streamer.app.ui.icons.AppIcons
 import dev.streamer.app.ui.navigation.AppNavigator
+import dev.streamer.app.ui.navigation.LocalConnection
 import dev.streamer.app.ui.navigation.LocalFloatingPlayerHeight
 import dev.streamer.app.ui.navigation.LocalShellLayout
 import dev.streamer.app.ui.navigation.WidthClass
@@ -86,6 +93,10 @@ enum class LibraryFilter(val label: String) {
     Artists("Artists"),
     Downloaded("Downloaded"),
 }
+
+/** Downloaded comes first while offline. */
+fun filterOrder(offline: Boolean): List<LibraryFilter> =
+    if (offline) listOf(LibraryFilter.Downloaded) + LibraryFilter.entries.filter { it != LibraryFilter.Downloaded } else LibraryFilter.entries
 
 private val GRID_FILTERS = setOf(LibraryFilter.Playlists, LibraryFilter.Albums, LibraryFilter.Artists)
 
@@ -151,8 +162,28 @@ fun List<PlaylistSummary>.sortedFor(order: PlaylistListOrder): List<PlaylistSumm
 fun LibraryRoute(navigator: AppNavigator, player: PlayerController) {
     val vm = appViewModel { LibraryViewModel(it.library, it.settings) }
     val state by vm.state.collectAsStateWithLifecycle()
-    var filter by rememberSaveable { mutableStateOf(LibraryFilter.Playlists) }
+    val offline = LocalConnection.current != Connection.Online
+    // Start on Downloaded when opened offline, decided before the first frame (no visible switch).
+    var filter by rememberSaveable { mutableStateOf(if (offline) LibraryFilter.Downloaded else LibraryFilter.Playlists) }
     var grid by rememberSaveable { mutableStateOf(false) }
+    // Offline, Downloaded is what can play: switch to it when going offline (or
+    // opening Library offline), and back when online again if we switched.
+    // Acts only on changes, so a chip chosen while offline is respected.
+    var lastOffline by rememberSaveable { mutableStateOf(offline) }
+    var switchedFrom by rememberSaveable { mutableStateOf(if (offline) LibraryFilter.Playlists else null) }
+    LaunchedEffect(offline) {
+        if (lastOffline == offline) return@LaunchedEffect
+        lastOffline = offline
+        if (offline) {
+            if (filter != LibraryFilter.Downloaded) {
+                switchedFrom = filter
+                filter = LibraryFilter.Downloaded
+            }
+        } else {
+            switchedFrom?.let { previous -> if (filter == LibraryFilter.Downloaded) filter = previous }
+            switchedFrom = null
+        }
+    }
     // A "Show all" from Home picks the view (and album order) to show.
     val request = navigator.libraryRequest
     LaunchedEffect(request) {
@@ -224,11 +255,12 @@ fun LibraryScreen(
                 IconButton(onClick = navigator::openSearch) { Icon(Icons.Filled.Search, contentDescription = "Search") }
             }
         }
+        val chipOrder = filterOrder(offline = LocalConnection.current != Connection.Online)
         LazyRow(
             contentPadding = PaddingValues(horizontal = pad),
             horizontalArrangement = Arrangement.spacedBy(Dimens.s),
         ) {
-            items(LibraryFilter.entries) { f ->
+            items(chipOrder) { f ->
                 FilterChip(selected = f == filter, onClick = { onFilter(f) }, label = { Text(f.label) })
             }
         }
@@ -249,10 +281,7 @@ fun LibraryScreen(
         Refreshable(refreshing, onRefresh, Modifier.fillMaxSize()) {
             when {
                 !state.loaded -> Unit
-                filter == LibraryFilter.Downloaded -> ScrollableEmpty(
-                    "No downloads",
-                    "Downloading music for offline playback isn't available in this build yet.",
-                )
+                filter == LibraryFilter.Downloaded -> DownloadedList(pad, navigator, player)
                 filter == LibraryFilter.Songs -> SongList(state.songs, "Songs", "No songs", pad, navigator, player)
                 filter == LibraryFilter.Favourites ->
                     SongList(state.favourites, "Favourite songs", "Tap the heart on a song to add it here.", pad, navigator, player)
@@ -272,6 +301,26 @@ fun LibraryScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun DownloadedList(pad: androidx.compose.ui.unit.Dp, navigator: AppNavigator, player: PlayerController) {
+    val container = LocalAppContainer.current
+    val collections by container.downloads.downloadedCollections.collectAsStateWithLifecycle()
+    val songs by container.downloads.individualSongs.collectAsStateWithLifecycle()
+    val downloads = rememberDownloadsUi()
+    val scope = rememberCoroutineScope()
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Dimens.xl + LocalFloatingPlayerHeight.current)) {
+        item {
+            TextButton(onClick = navigator::openDownloads, modifier = Modifier.padding(horizontal = pad - Dimens.s)) { Text("Manage downloads") }
+        }
+        if (collections.isEmpty() && songs.isEmpty()) {
+            item { EmptyState("No downloads", "Download albums, playlists or songs from their menus to play them without a connection.") }
+        }
+        downloadedSections(collections, songs, pad, navigator, player, downloads) { c ->
+            c.actions(container.downloads, container.messages, scope)
         }
     }
 }
@@ -314,11 +363,13 @@ private fun SongList(
         ScrollableEmpty("Nothing here yet", emptyMessage)
         return
     }
+    val downloads = rememberDownloadsUi()
     val actions = SongActions(
         onPlayNext = player::playNext,
         onAddToQueue = player::addToQueue,
         onOpenAlbum = { s -> s.albumId?.let(navigator::openAlbum) },
         onOpenArtist = { s -> s.artistId?.let(navigator::openArtist) },
+        downloads = downloads,
     )
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = Dimens.s, bottom = Dimens.xl + LocalFloatingPlayerHeight.current)) {
         itemsIndexed(songs, key = { _, s -> s.id }) { i, song ->

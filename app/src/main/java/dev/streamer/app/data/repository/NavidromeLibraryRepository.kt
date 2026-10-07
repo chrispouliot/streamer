@@ -1,6 +1,7 @@
 package dev.streamer.app.data.repository
 
 import android.database.SQLException
+import dev.streamer.app.data.Connection
 import dev.streamer.app.data.LibraryRepository
 import dev.streamer.app.data.SyncStatus
 import dev.streamer.app.data.SyncTarget
@@ -10,8 +11,8 @@ import dev.streamer.app.data.account.SessionState
 import dev.streamer.app.data.local.AlbumSongEntity
 import dev.streamer.app.data.local.LibraryDao
 import dev.streamer.app.data.local.PlayHistoryEntity
-import dev.streamer.app.data.local.RecentCollectionEntity
 import dev.streamer.app.data.local.PlaylistEntryEntity
+import dev.streamer.app.data.local.RecentCollectionEntity
 import dev.streamer.app.data.local.SyncStateEntity
 import dev.streamer.app.data.remote.ApiError
 import dev.streamer.app.data.remote.ServerAuth
@@ -25,6 +26,12 @@ import dev.streamer.app.model.RecentCollection
 import dev.streamer.app.model.SearchResults
 import dev.streamer.app.model.Song
 import dev.streamer.app.playback.PlaybackSource
+import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,25 +41,20 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import java.time.Instant
-import java.util.concurrent.ConcurrentHashMap
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.hours
-import kotlin.time.Duration.Companion.minutes
-import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.withContext
 
 /**
  * Online-first library backed by the Navidrome (Subsonic) API with a Room
@@ -67,6 +69,11 @@ class NavidromeLibraryRepository(
     private val client: SubsonicClient,
     private val messages: UserMessages,
     private val scope: CoroutineScope,
+    /** Offline-only mode: cached data only, no server requests. */
+    private val offlineOnly: StateFlow<Boolean> = MutableStateFlow(false),
+    override val connection: StateFlow<Connection> = MutableStateFlow(Connection.Online),
+    /** Told whether requests reach the server, so the UI can say when they don't. */
+    private val onServerReachable: (Boolean) -> Unit = {},
     private val clock: () -> Long = System::currentTimeMillis,
 ) : LibraryRepository {
 
@@ -187,7 +194,7 @@ class NavidromeLibraryRepository(
     override suspend fun search(query: String): SearchResults {
         val q = query.trim()
         if (q.isEmpty()) return SearchResults()
-        val current = accounts.currentAuth()
+        val current = accounts.currentAuth()?.takeUnless { offlineOnly.value }
         if (current != null) {
             val (account, auth) = current
             try {
@@ -228,6 +235,10 @@ class NavidromeLibraryRepository(
     }
 
     override fun setSongStarred(songId: String, starred: Boolean) {
+        if (offlineOnly.value) {
+            messages.post("Offline mode is on, so favourites can't be changed right now.")
+            return
+        }
         val current = accounts.currentAuth()
         if (current == null) {
             messages.post("Not connected to your server, so favourites can't be changed right now.")
@@ -272,7 +283,8 @@ class NavidromeLibraryRepository(
 
     /** Starts a background refresh of [key] if it is older than [maxAge] and not already running. */
     private fun refresh(key: String, maxAge: Duration, sync: suspend (acc: String, auth: ServerAuth) -> Unit) {
-        val current = accounts.currentAuth()
+        // No attempt without a network; cached data is shown instead.
+        val current = accounts.currentAuth()?.takeUnless { offlineOnly.value || connection.value == Connection.NoNetwork }
         val accountId = current?.first?.id ?: (accounts.state.value as? SessionState.Active)?.account?.id
         if (current == null) {
             // Signed out or awaiting reauthentication: cached data only.
@@ -286,7 +298,10 @@ class NavidromeLibraryRepository(
             try {
                 val last = dao.syncedAt(account.id, key)
                 if (last != null && clock() - last < maxAge.inWholeMilliseconds) return@launch
-                runSync(account.id, auth, key, sync)?.let { messages.post("Couldn't refresh from your server. $it Showing saved data.") }
+                runSync(account.id, auth, key, sync)?.let {
+                    // The connection banner already explains an unreachable server.
+                    if (connection.value == Connection.Online) messages.post("Couldn't refresh from your server. $it Showing saved data.")
+                }
             } finally {
                 inFlight.remove(flightKey)
                 markAttempted(account.id, key)
@@ -299,6 +314,7 @@ class NavidromeLibraryRepository(
         val errorKey = "$acc:$key"
         return try {
             retryTransient { sync(acc, auth) }
+            onServerReachable(true)
             dao.upsertSyncState(SyncStateEntity(acc, key, clock()))
             errors.update { it - errorKey }
             null
@@ -306,6 +322,7 @@ class NavidromeLibraryRepository(
             throw e
         } catch (e: ApiError) {
             if (e is ApiError.Auth) accounts.reportAuthFailure(e)
+            onServerReachable(e !is ApiError.Unreachable && e !is ApiError.Timeout)
             val message = e.message ?: "Couldn't refresh."
             errors.update { it + (errorKey to message) }
             if (e is ApiError.Auth) null else message
@@ -342,18 +359,21 @@ class NavidromeLibraryRepository(
     override fun syncStatus(target: SyncTarget): Flow<SyncStatus> {
         val keys = keysFor(target)
         return observe(SyncStatus()) { acc ->
-            combine(dao.observeSyncStates(acc, keys), errors, accounts.state) { states, errs, session ->
+            combine(dao.observeSyncStates(acc, keys), errors, accounts.state, connection) { states, errs, session, conn ->
                 val times = keys.map { k -> states.firstOrNull { it.key == k }?.syncedAtMillis }
                 SyncStatus(
                     lastUpdated = if (times.any { it == null }) null else Instant.ofEpochMilli(times.filterNotNull().min()),
-                    error = (session as? SessionState.Active)?.reauthReason
-                        ?: keys.firstNotNullOfOrNull { errs["$acc:$it"] },
+                    error = if (conn != Connection.Online) null
+                    else (session as? SessionState.Active)?.reauthReason ?: keys.firstNotNullOfOrNull { errs["$acc:$it"] },
+                    connection = conn,
                 )
             }
         }
     }
 
     override suspend fun refresh(target: SyncTarget): String? {
+        if (offlineOnly.value) return OFFLINE_MESSAGE
+        if (connection.value == Connection.NoNetwork) return "There's no network connection."
         val (account, auth) = accounts.currentAuth()
             ?: return (accounts.state.value as? SessionState.Active)?.reauthReason ?: "Not connected to your server."
         return withContext(Dispatchers.Default) {
@@ -478,6 +498,7 @@ class NavidromeLibraryRepository(
 
     private companion object {
         const val PAGE = 500
+        const val OFFLINE_MESSAGE = "Offline mode is on. Turn it off in Settings to refresh."
         const val RECENT_COLLECTIONS = 4
         const val MAX_PAGES = 200
         const val PLAYLISTS = "playlists"
