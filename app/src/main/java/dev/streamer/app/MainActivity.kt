@@ -12,7 +12,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.streamer.app.settings.ThemeMode
-import dev.streamer.app.ui.navigation.AppShell
+import dev.streamer.app.ui.AppRoot
 import dev.streamer.app.ui.theme.StreamerTheme
 
 class MainActivity : ComponentActivity() {
@@ -35,7 +35,7 @@ class MainActivity : ComponentActivity() {
             }
             StreamerTheme(darkTheme = dark) {
                 CompositionLocalProvider(LocalAppContainer provides container) {
-                    AppShell(container.player)
+                    AppRoot(container)
                 }
             }
         }

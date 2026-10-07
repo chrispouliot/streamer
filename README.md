@@ -4,9 +4,10 @@ Native Kotlin/Jetpack Compose Android player for a Navidrome server
 (Subsonic/OpenSubsonic API). See `PLAN.md` for scope and phase status and
 `AGENTS.md` for the development environment.
 
-Status: Phase 1 (adaptive UI shell) implemented. Debug builds show a fictional demo
-library and a silent simulated player; release builds show empty states. There is
-no Navidrome connection, real audio playback or downloading yet.
+Status: Phase 2 (Navidrome connection and cached library) implemented, pending
+device and live-server verification. Both build types sign in to a Navidrome server
+and show its library. There is no real audio playback yet: debug builds drive a
+silent simulated player, release builds have none. No downloading yet.
 
 ## Project choices
 
@@ -29,6 +30,9 @@ All library/plugin versions live in `gradle/libs.versions.toml`.
 | Android Gradle Plugin | 9.4.1 (built-in Kotlin support) |
 | Kotlin / Compose compiler plugin | 2.4.20 |
 | Compose BOM | 2026.09.00 |
+| OkHttp | 5.5.0 |
+| Room (KSP 2.3.12) | 2.8.5 — schema in `app/schemas`, commit it |
+| Coil | 3.6.3 |
 | JDK (from Nix shell) | 21; bytecode target 17 |
 
 Gradle is not installed by Nix: `./gradlew` downloads the pinned distribution
@@ -44,3 +48,14 @@ android-build                              # debug APK
 android-gradle testDebugUnitTest lintDebug
 android-run --logcat                       # install + launch on a device
 ```
+
+## Server connection
+
+- Any Subsonic/OpenSubsonic server address, including a reverse-proxy sub-path;
+  a pasted `/rest` or `/app` suffix is removed.
+- `https://` uses the system certificate store only. Plain `http://` (for example
+  over Tailscale or a home network) must be allowed explicitly for that server;
+  the app never downgrades an https address.
+- Token authentication (`t`/`s`); the password is stored encrypted with an
+  Android Keystore key in no-backup storage and is never logged.
+- Device tests: `android-gradle connectedDebugAndroidTest`.

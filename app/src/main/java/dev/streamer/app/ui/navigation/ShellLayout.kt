@@ -1,5 +1,10 @@
 package dev.streamer.app.ui.navigation
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.unit.Dp
@@ -44,3 +49,11 @@ val LocalShellLayout = staticCompositionLocalOf { ShellLayout(WidthClass.Compact
  * can scroll clear of the player.
  */
 val LocalFloatingPlayerHeight = compositionLocalOf { 0.dp }
+
+/**
+ * Status bar and top cutout. The shell leaves this to each page: plain pages
+ * are padded by the shell's [TopInset] wrapper, while artwork-tinted detail
+ * pages draw their background behind the status bar and pad only content.
+ */
+val WindowInsets.Companion.topBar: WindowInsets
+    @Composable get() = safeDrawing.only(WindowInsetsSides.Top)

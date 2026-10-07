@@ -28,6 +28,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.streamer.app.playback.PlayerController
 import dev.streamer.app.playback.PlayerState
+import dev.streamer.app.ui.components.ArtSize
 import dev.streamer.app.ui.components.CoverArt
 import dev.streamer.app.ui.components.FavoriteButton
 import dev.streamer.app.ui.components.Favorites
@@ -83,7 +84,7 @@ fun MiniPlayerCard(
                 Modifier.padding(start = Dimens.s, end = Dimens.xs, top = Dimens.s, bottom = Dimens.s),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                CoverArt(song.artwork, Modifier.size(Dimens.miniPlayerArt), MaterialTheme.shapes.small)
+                CoverArt(song.artwork, Modifier.size(Dimens.miniPlayerArt), MaterialTheme.shapes.small, size = ArtSize.Small)
                 Spacer(Modifier.width(Dimens.m))
                 Column(Modifier.weight(1f)) {
                     Text(song.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)

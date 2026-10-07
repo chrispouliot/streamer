@@ -51,7 +51,18 @@ data class PlayerState(
 interface PlayerController {
     val state: StateFlow<PlayerState>
 
-    fun play(songs: List<Song>, startIndex: Int = 0, source: PlaybackSource? = null, shuffle: Boolean = false)
+    /**
+     * Replaces the queue. [sourcePositions] gives each song's position in its
+     * source (e.g. playlist entry positions when shown in another sort order);
+     * by default a song's index in [songs] is used.
+     */
+    fun play(
+        songs: List<Song>,
+        startIndex: Int = 0,
+        source: PlaybackSource? = null,
+        shuffle: Boolean = false,
+        sourcePositions: List<Int>? = null,
+    )
     fun togglePlayPause()
     fun next()
     fun previous()

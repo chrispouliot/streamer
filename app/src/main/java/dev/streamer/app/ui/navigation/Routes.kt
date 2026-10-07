@@ -11,4 +11,5 @@ object Routes {
     @Serializable data class Album(val id: String)
     @Serializable data class Artist(val id: String)
     @Serializable data class Playlist(val id: String)
+    @Serializable data object Connect
 }

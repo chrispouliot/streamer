@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.streamer.app.playback.PlayerController
 import dev.streamer.app.playback.PlayerState
+import dev.streamer.app.ui.components.ArtSize
 import dev.streamer.app.ui.components.CoverArt
 import dev.streamer.app.ui.components.Favorites
 import dev.streamer.app.ui.components.SongLeading
@@ -78,7 +79,7 @@ fun PlayerPanePanel(
                 IconButton(onClick = onExpand) { Icon(AppIcons.OpenInFull, contentDescription = "Open full player") }
             }
             Spacer(Modifier.height(Dimens.s))
-            CoverArt(song.artwork, Modifier.fillMaxWidth().aspectRatio(1f), MaterialTheme.shapes.large, "Album artwork")
+            CoverArt(song.artwork, Modifier.fillMaxWidth().aspectRatio(1f), MaterialTheme.shapes.large, "Album artwork", ArtSize.Large)
             Spacer(Modifier.height(Dimens.l))
             TrackTitle(state, favorites, large = false)
             Spacer(Modifier.height(Dimens.s))

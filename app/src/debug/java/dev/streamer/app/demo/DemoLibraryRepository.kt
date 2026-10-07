@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlin.time.Duration.Companion.milliseconds
 
 /** Fictional library for debug builds and previews only. */
@@ -24,6 +25,7 @@ class DemoLibraryRepository(private val catalog: DemoCatalog = DemoCatalog) : Li
 
     private val starred = MutableStateFlow(catalog.initiallyStarred)
     override val starredSongIds = starred.asStateFlow()
+    override val starredSongs = starred.map { ids -> catalog.allSongs.filter { it.id in ids } }
 
     override fun setSongStarred(songId: String, starred: Boolean) {
         this.starred.update { if (starred) it + songId else it - songId }

@@ -91,7 +91,7 @@ fun SongRow(
                 }
             }
             SongLeading.Artwork -> {
-                CoverArt(song.artwork, Modifier.size(Dimens.rowArt), shape = MaterialTheme.shapes.small)
+                CoverArt(song.artwork, Modifier.size(Dimens.rowArt), shape = MaterialTheme.shapes.small, size = ArtSize.Small)
                 Spacer(Modifier.width(Dimens.m))
             }
             SongLeading.None -> Unit
@@ -192,7 +192,7 @@ fun MediaRow(
             .padding(horizontal = horizontalPadding, vertical = Dimens.s),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (circular) ArtistArt(artwork, Modifier.size(64.dp)) else CoverArt(artwork, Modifier.size(64.dp), MaterialTheme.shapes.small)
+        if (circular) ArtistArt(artwork, Modifier.size(64.dp), ArtSize.Small) else CoverArt(artwork, Modifier.size(64.dp), MaterialTheme.shapes.small, size = ArtSize.Small)
         Spacer(Modifier.width(Dimens.l))
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -260,7 +260,7 @@ fun ShortcutTile(title: String, artwork: Artwork, onClick: () -> Unit, modifier:
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            CoverArt(artwork, Modifier.size(64.dp), shape = RectangleShape)
+            CoverArt(artwork, Modifier.size(64.dp), shape = RectangleShape, size = ArtSize.Small)
             Text(
                 title,
                 style = MaterialTheme.typography.labelLarge,

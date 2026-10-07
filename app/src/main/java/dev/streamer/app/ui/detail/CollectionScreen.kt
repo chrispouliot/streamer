@@ -8,7 +8,9 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
@@ -38,6 +41,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.streamer.app.model.Artwork
+import dev.streamer.app.ui.components.ArtSize
 import dev.streamer.app.ui.components.ArtistArt
 import dev.streamer.app.ui.components.BackBar
 import dev.streamer.app.ui.components.CoverArt
@@ -47,6 +51,7 @@ import dev.streamer.app.ui.components.ShuffleButton
 import dev.streamer.app.ui.icons.AppIcons
 import dev.streamer.app.ui.navigation.LocalFloatingPlayerHeight
 import dev.streamer.app.ui.navigation.LocalShellLayout
+import dev.streamer.app.ui.navigation.topBar
 import dev.streamer.app.ui.theme.Dimens
 import dev.streamer.app.ui.theme.playerTint
 
@@ -81,18 +86,19 @@ fun CollectionScreen(
     onPlay: () -> Unit,
     onShuffle: () -> Unit,
     emptyMessage: String,
+    topActions: @Composable RowScope.() -> Unit = {},
     tracks: LazyListScope.(horizontalPadding: androidx.compose.ui.unit.Dp) -> Unit,
 ) {
     val header = when (state) {
         DetailState.Loading -> {
-            Column(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.topBar)) {
                 BackBar(onBack)
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             }
             return
         }
         DetailState.NotFound -> {
-            Column(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.topBar)) {
                 BackBar(onBack)
                 EmptyState("Not available", "This item could not be found on your server.")
             }
@@ -103,7 +109,8 @@ fun CollectionScreen(
     val pad = LocalShellLayout.current.pagePadding
     val tint = playerTint(header.artwork)
     val gradient = Brush.verticalGradient(0f to tint, 0.45f to MaterialTheme.colorScheme.background)
-    BoxWithConstraints(Modifier.fillMaxSize().background(gradient)) {
+    // The tint starts behind the status bar; only the content is inset.
+    BoxWithConstraints(Modifier.fillMaxSize().background(gradient).windowInsetsPadding(WindowInsets.topBar)) {
         val width = maxWidth
         if (width >= 720.dp) {
             Row(Modifier.fillMaxSize()) {
@@ -114,9 +121,9 @@ fun CollectionScreen(
                         .verticalScroll(rememberScrollState())
                         .padding(start = Dimens.xs, bottom = Dimens.xl + LocalFloatingPlayerHeight.current),
                 ) {
-                    BackBar(onBack)
+                    BackBar(onBack, actions = topActions)
                     Column(Modifier.padding(horizontal = pad - Dimens.xs)) {
-                        CoverArt(header.artwork, Modifier.fillMaxWidth().aspectRatio(1f), MaterialTheme.shapes.large, "Artwork")
+                        CoverArt(header.artwork, Modifier.fillMaxWidth().aspectRatio(1f), MaterialTheme.shapes.large, "Artwork", ArtSize.Large)
                         Spacer(Modifier.height(Dimens.l))
                         HeaderText(header, center = false)
                         Spacer(Modifier.height(Dimens.l))
@@ -130,7 +137,7 @@ fun CollectionScreen(
             }
         } else {
             LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = Dimens.xl + LocalFloatingPlayerHeight.current)) {
-                item(key = "back") { BackBar(onBack) }
+                item(key = "back") { BackBar(onBack, actions = topActions) }
                 item(key = "header") {
                     Column(Modifier.fillMaxWidth().padding(horizontal = pad), horizontalAlignment = Alignment.CenterHorizontally) {
                         CoverArt(
@@ -138,6 +145,7 @@ fun CollectionScreen(
                             Modifier.fillMaxWidth(0.62f).widthIn(max = 300.dp).aspectRatio(1f),
                             MaterialTheme.shapes.large,
                             "Artwork",
+                            ArtSize.Large,
                         )
                         Spacer(Modifier.height(Dimens.xl))
                         HeaderText(header, center = false, modifier = Modifier.fillMaxWidth())
@@ -174,7 +182,7 @@ private fun HeaderText(header: CollectionHeader, center: Boolean, modifier: Modi
                     .padding(vertical = Dimens.xs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                byline.artwork?.let { ArtistArt(it, Modifier.size(28.dp)); Spacer(Modifier.width(Dimens.s)) }
+                byline.artwork?.let { ArtistArt(it, Modifier.size(28.dp), size = ArtSize.Small); Spacer(Modifier.width(Dimens.s)) }
                 Text(byline.text, style = MaterialTheme.typography.titleSmall)
             }
         }

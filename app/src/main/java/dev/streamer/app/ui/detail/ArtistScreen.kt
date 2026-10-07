@@ -7,12 +7,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -47,6 +49,7 @@ import dev.streamer.app.ui.components.appViewModel
 import dev.streamer.app.ui.navigation.AppNavigator
 import dev.streamer.app.ui.navigation.LocalFloatingPlayerHeight
 import dev.streamer.app.ui.navigation.LocalShellLayout
+import dev.streamer.app.ui.navigation.topBar
 import dev.streamer.app.ui.theme.Dimens
 import dev.streamer.app.ui.theme.playerTint
 import kotlinx.coroutines.flow.SharingStarted
@@ -78,11 +81,11 @@ fun ArtistRoute(id: String, navigator: AppNavigator, player: PlayerController) {
     val playerState by player.state.collectAsStateWithLifecycle()
     val fromThis = (playerState.source as? PlaybackSource.Artist)?.id == id
     when (val s = state) {
-        DetailState.Loading -> Column(Modifier.fillMaxSize()) {
+        DetailState.Loading -> Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.topBar)) {
             BackBar(navigator::back)
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         }
-        DetailState.NotFound -> Column(Modifier.fillMaxSize()) {
+        DetailState.NotFound -> Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.topBar)) {
             BackBar(navigator::back)
             EmptyState("Not available", "This artist could not be found on your server.")
         }
@@ -114,7 +117,8 @@ fun ArtistScreen(
     val gradient = Brush.verticalGradient(0f to playerTint(summary.artwork), 0.5f to MaterialTheme.colorScheme.background)
     LazyVerticalGrid(
         columns = GridCells.Adaptive(150.dp),
-        modifier = Modifier.fillMaxSize().background(gradient),
+        // The tint starts behind the status bar; only the content is inset.
+        modifier = Modifier.fillMaxSize().background(gradient).windowInsetsPadding(WindowInsets.topBar),
         contentPadding = PaddingValues(start = pad, end = pad, bottom = Dimens.xl + LocalFloatingPlayerHeight.current),
         horizontalArrangement = Arrangement.spacedBy(Dimens.l),
         verticalArrangement = Arrangement.spacedBy(Dimens.s),

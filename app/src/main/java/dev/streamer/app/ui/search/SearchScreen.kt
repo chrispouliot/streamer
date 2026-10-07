@@ -177,6 +177,16 @@ private fun androidx.compose.foundation.lazy.LazyListScope.results(
     navigator: AppNavigator,
     player: PlayerController,
 ) {
+    if (results.fromCache) {
+        item(key = "cached") {
+            Text(
+                "Your server couldn't be reached, so only saved music was searched.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = pad, vertical = Dimens.s),
+            )
+        }
+    }
     if (results.isEmpty) {
         item(key = "none") { EmptyState("No results", "Nothing matches “${query.trim()}”.") }
         return

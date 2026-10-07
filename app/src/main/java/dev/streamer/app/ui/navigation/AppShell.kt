@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -26,8 +28,11 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -54,7 +59,10 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import dev.streamer.app.LocalAppContainer
+import dev.streamer.app.data.account.SessionState
 import dev.streamer.app.playback.PlayerController
+import dev.streamer.app.ui.account.ConnectRoute
 import dev.streamer.app.ui.components.rememberFavorites
 import dev.streamer.app.ui.detail.AlbumRoute
 import dev.streamer.app.ui.detail.ArtistRoute
@@ -117,6 +125,13 @@ private fun AppFrame(player: PlayerController) {
     val hasPlayer = playerState.hasQueue
     LaunchedEffect(hasPlayer) { if (!hasPlayer) navigator.closePlayer() }
     val favorites = rememberFavorites()
+    val container = LocalAppContainer.current
+    val session by container.accounts.state.collectAsStateWithLifecycle()
+    val reauthReason = (session as? SessionState.Active)?.reauthReason
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(container.messages) {
+        container.messages.messages.collect { snackbar.showSnackbar(it, withDismissAction = true) }
+    }
     var railWidthPx by remember { mutableIntStateOf(0) }
     var miniHeightPx by remember { mutableIntStateOf(0) }
     // Where the player sheet collapses to: the mini-player, or the pane on wide windows.
@@ -136,10 +151,13 @@ private fun AppFrame(player: PlayerController) {
         val showBar = !layout.usesRail
         val showRail = layout.usesRail
 
-        var sides = WindowInsetsSides.Top
-        if (!showRail) sides += WindowInsetsSides.Start
-        if (!showPane) sides += WindowInsetsSides.End
-        if (!showBar) sides += WindowInsetsSides.Bottom
+        // Top is handled per page (see WindowInsets.topBar).
+        var sides: WindowInsetsSides? = null
+        fun add(side: WindowInsetsSides) { sides = sides?.plus(side) ?: side }
+        if (!showRail) add(WindowInsetsSides.Start)
+        if (!showPane) add(WindowInsetsSides.End)
+        if (!showBar) add(WindowInsetsSides.Bottom)
+        val contentInsets = sides?.let { Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(it)) } ?: Modifier
 
         CompositionLocalProvider(LocalShellLayout provides layout) {
             Row(Modifier.fillMaxSize()) {
@@ -147,11 +165,24 @@ private fun AppFrame(player: PlayerController) {
                 Column(Modifier.weight(1f)) {
                     // The mini-player floats over the bottom of the content; pages
                     // scroll underneath it and pad their ends by its height.
-                    Box(Modifier.weight(1f).windowInsetsPadding(WindowInsets.safeDrawing.only(sides))) {
+                    Box(Modifier.weight(1f).then(contentInsets)) {
                         val floatingHeight = if (showMini) with(LocalDensity.current) { miniHeightPx.toDp() } else 0.dp
-                        CompositionLocalProvider(LocalFloatingPlayerHeight provides floatingHeight) {
-                            AppNavHost(navController, navigator, player)
+                        Column(Modifier.fillMaxSize()) {
+                            if (reauthReason != null) {
+                                ReauthBanner(reauthReason, navigator::openReconnect, Modifier.windowInsetsPadding(WindowInsets.topBar))
+                            }
+                            // With the banner on top, pages below must not pad for the status bar again.
+                            val topConsumed = if (reauthReason != null) Modifier.consumeWindowInsets(WindowInsets.topBar) else Modifier
+                            Box(Modifier.weight(1f).then(topConsumed)) {
+                                CompositionLocalProvider(LocalFloatingPlayerHeight provides floatingHeight) {
+                                    AppNavHost(navController, navigator, player)
+                                }
+                            }
                         }
+                        SnackbarHost(
+                            snackbar,
+                            Modifier.align(Alignment.BottomCenter).padding(bottom = floatingHeight),
+                        )
                         if (showMini) {
                             MiniPlayer(
                                 playerState,
@@ -236,14 +267,23 @@ private fun AppNavHost(
         predictivePopEnterTransition = { fadeIn(tween(EnterMillis)) },
         predictivePopExitTransition = { fadeOut(tween(ExitMillis)) },
     ) {
-        composable<Routes.Home> { HomeRoute(navigator, player) }
-        composable<Routes.Search> { SearchRoute(navigator, player) }
-        composable<Routes.Library> { LibraryRoute(navigator, player) }
-        composable<Routes.Downloads> { DownloadsRoute(navigator) }
-        composable<Routes.Settings> { SettingsRoute(navigator) }
+        composable<Routes.Home> { TopInset { HomeRoute(navigator, player) } }
+        composable<Routes.Search> { TopInset { SearchRoute(navigator, player) } }
+        composable<Routes.Library> { TopInset { LibraryRoute(navigator, player) } }
+        composable<Routes.Downloads> { TopInset { DownloadsRoute(navigator) } }
+        composable<Routes.Settings> { TopInset { SettingsRoute(navigator) } }
+        // Album, artist and playlist pages draw their tinted header behind the status bar.
         composable<Routes.Album> { AlbumRoute(it.toRoute<Routes.Album>().id, navigator, player) }
         composable<Routes.Artist> { ArtistRoute(it.toRoute<Routes.Artist>().id, navigator, player) }
         composable<Routes.Playlist> { PlaylistRoute(it.toRoute<Routes.Playlist>().id, navigator, player) }
+        composable<Routes.Connect> {
+            val session by LocalAppContainer.current.accounts.state.collectAsStateWithLifecycle()
+            ConnectRoute(
+                reconnect = (session as? SessionState.Active)?.account,
+                onConnected = navigator::back,
+                onBack = navigator::back,
+            )
+        }
     }
 }
 
@@ -279,5 +319,28 @@ private fun AppRail(selected: TopLevel, onSelect: (TopLevel) -> Unit, modifier: 
             icon = { Icon(TopLevel.Settings.icon, contentDescription = null) },
             label = { Text(TopLevel.Settings.label) },
         )
+    }
+}
+
+/** Pads a plain page below the status bar. */
+@Composable
+private fun TopInset(content: @Composable () -> Unit) {
+    Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.topBar)) { content() }
+}
+
+@Composable
+private fun ReauthBanner(reason: String, onReconnect: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(color = MaterialTheme.colorScheme.errorContainer, contentColor = MaterialTheme.colorScheme.onErrorContainer) {
+        Row(
+            modifier.fillMaxWidth().padding(start = Dimens.l, end = Dimens.s, top = Dimens.xs, bottom = Dimens.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "Signed out of your server. $reason Showing saved music.",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f),
+            )
+            TextButton(onClick = onReconnect) { Text("Reconnect") }
+        }
     }
 }

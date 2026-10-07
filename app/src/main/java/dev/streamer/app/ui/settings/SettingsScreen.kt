@@ -1,5 +1,6 @@
 package dev.streamer.app.ui.settings
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,12 +13,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -27,6 +33,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import dev.streamer.app.data.account.AccountRepository
+import dev.streamer.app.data.account.SessionState
+import dev.streamer.app.playback.PlayerController
 import dev.streamer.app.settings.SettingsRepository
 import dev.streamer.app.settings.ThemeMode
 import dev.streamer.app.ui.components.BackBar
@@ -41,24 +50,54 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class SettingsViewModel(private val settings: SettingsRepository) : ViewModel() {
+class SettingsViewModel(
+    private val settings: SettingsRepository,
+    private val accounts: AccountRepository,
+    private val player: PlayerController,
+) : ViewModel() {
     val themeMode: StateFlow<ThemeMode?> = settings.themeMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    val session: StateFlow<SessionState> = accounts.state
+
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch { settings.setThemeMode(mode) }
+    }
+
+    /** Stops playback and removes the account, its password and cached library from the device. */
+    fun signOut() {
+        player.clearQueue()
+        viewModelScope.launch { accounts.signOut() }
     }
 }
 
 @Composable
 fun SettingsRoute(navigator: AppNavigator) {
-    val vm = appViewModel { SettingsViewModel(it.settings) }
+    val vm = appViewModel { SettingsViewModel(it.settings, it.accounts, it.player) }
     val themeMode by vm.themeMode.collectAsStateWithLifecycle()
-    SettingsScreen(themeMode, vm::setThemeMode, onBack = navigator::back, showBack = !LocalShellLayout.current.usesRail)
+    val session by vm.session.collectAsStateWithLifecycle()
+    SettingsScreen(
+        themeMode = themeMode,
+        onThemeMode = vm::setThemeMode,
+        session = session as? SessionState.Active,
+        onReconnect = navigator::openReconnect,
+        onSignOut = vm::signOut,
+        onBack = navigator::back,
+        showBack = !LocalShellLayout.current.usesRail,
+    )
 }
 
 @Composable
-fun SettingsScreen(themeMode: ThemeMode?, onThemeMode: (ThemeMode) -> Unit, onBack: () -> Unit, showBack: Boolean) {
+fun SettingsScreen(
+    themeMode: ThemeMode?,
+    onThemeMode: (ThemeMode) -> Unit,
+    session: SessionState.Active?,
+    onReconnect: () -> Unit,
+    onSignOut: () -> Unit,
+    onBack: () -> Unit,
+    showBack: Boolean,
+) {
+    var confirmSignOut by rememberSaveable { mutableStateOf(false) }
     val pad = LocalShellLayout.current.pagePadding
     val context = LocalContext.current
     val version = remember {
@@ -69,12 +108,31 @@ fun SettingsScreen(themeMode: ThemeMode?, onThemeMode: (ThemeMode) -> Unit, onBa
         item { ScreenTitle("Settings", pad) }
 
         item { SettingsSection("Account", pad) }
-        item {
-            SettingsText(
-                "No server connected",
-                "Connecting to a Navidrome server isn't available in this build yet.",
-                pad,
-            )
+        val account = session?.account
+        if (account == null) {
+            item { SettingsText("No server connected", "Sign in to browse your library.", pad) }
+        } else {
+            item { SettingsText("Server", account.baseUrl, pad) }
+            item { SettingsText("Username", account.username, pad) }
+            item {
+                SettingsText(
+                    "Server version",
+                    listOfNotNull(account.serverType?.replaceFirstChar { it.uppercase() }, account.serverVersion).joinToString(" ").ifEmpty { "Unknown" },
+                    pad,
+                )
+            }
+            if (!account.baseUrl.startsWith("https://")) {
+                item { SettingsText("Connection", "Unencrypted HTTP, allowed for this server.", pad) }
+            }
+            session.reauthReason?.let { reason ->
+                item { SettingsText("Signed out", reason, pad) }
+            }
+            item {
+                Row(Modifier.padding(horizontal = pad - Dimens.s), horizontalArrangement = Arrangement.spacedBy(Dimens.s)) {
+                    TextButton(onClick = onReconnect) { Text("Reconnect") }
+                    TextButton(onClick = { confirmSignOut = true }) { Text("Sign out", color = MaterialTheme.colorScheme.error) }
+                }
+            }
         }
 
         item { SettingsSection("Appearance", pad) }
@@ -104,6 +162,24 @@ fun SettingsScreen(themeMode: ThemeMode?, onThemeMode: (ThemeMode) -> Unit, onBa
 
         item { SettingsSection("About", pad) }
         item { SettingsText("Version", version ?: "Unknown", pad) }
+    }
+    if (confirmSignOut && session != null) {
+        AlertDialog(
+            onDismissRequest = { confirmSignOut = false },
+            title = { Text("Sign out?") },
+            text = {
+                Text(
+                    "This stops playback and removes the saved password and this server's cached library from this device. " +
+                        "Your music and playlists on the server aren't affected.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { confirmSignOut = false; onSignOut() }) {
+                    Text("Sign out", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text("Cancel") } },
+        )
     }
 }
 

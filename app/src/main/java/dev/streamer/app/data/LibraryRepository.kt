@@ -11,8 +11,9 @@ import dev.streamer.app.model.Song
 import kotlinx.coroutines.flow.Flow
 
 /**
- * Read-only view of the music library for the UI. Phase 2 backs this with the
- * Navidrome API and the Room cache; refresh/stale state will be added then.
+ * The music library for the UI. Flows emit cached data immediately and the
+ * implementation refreshes stale data from the server in the background while
+ * they are collected. Server playlists are read-only.
  */
 interface LibraryRepository {
     val playlists: Flow<List<PlaylistSummary>>
@@ -24,6 +25,7 @@ interface LibraryRepository {
 
     /** IDs of songs marked as favourite (starred) on the server. */
     val starredSongIds: Flow<Set<String>>
+    val starredSongs: Flow<List<Song>>
 
     /** Emits null when the item is unknown. */
     fun album(id: String): Flow<AlbumDetail?>

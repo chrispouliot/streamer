@@ -57,16 +57,20 @@ import kotlinx.coroutines.flow.stateIn
 
 enum class LibraryFilter(val label: String) {
     Playlists("Playlists"),
+    Favourites("Favourites"),
     Songs("Songs"),
     Albums("Albums"),
     Artists("Artists"),
     Downloaded("Downloaded"),
 }
 
+private val GRID_FILTERS = setOf(LibraryFilter.Playlists, LibraryFilter.Albums, LibraryFilter.Artists)
+
 data class LibraryUiState(
     val loaded: Boolean = false,
     val playlists: List<PlaylistSummary> = emptyList(),
     val songs: List<Song> = emptyList(),
+    val favourites: List<Song> = emptyList(),
     val albums: List<AlbumSummary> = emptyList(),
     val artists: List<ArtistSummary> = emptyList(),
 )
@@ -77,7 +81,10 @@ class LibraryViewModel(library: LibraryRepository) : ViewModel() {
         library.songs,
         library.albums,
         library.artists,
-    ) { playlists, songs, albums, artists -> LibraryUiState(true, playlists, songs, albums, artists) }
+        library.starredSongs,
+    ) { playlists, songs, albums, artists, favourites ->
+        LibraryUiState(true, playlists, songs, favourites, albums, artists)
+    }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LibraryUiState())
 }
 
@@ -107,7 +114,7 @@ fun LibraryScreen(
     val pad = layout.pagePadding
     Column(Modifier.fillMaxSize()) {
         ScreenTitle("Library", pad) {
-            if (filter != LibraryFilter.Songs && filter != LibraryFilter.Downloaded) {
+            if (filter in GRID_FILTERS) {
                 IconButton(onClick = { onGrid(!grid) }) {
                     Icon(
                         if (grid) AppIcons.ViewList else AppIcons.GridView,
@@ -145,7 +152,9 @@ fun LibraryScreen(
                 "No downloads",
                 "Downloading music for offline playback isn't available in this build yet.",
             )
-            filter == LibraryFilter.Songs -> SongList(state.songs, pad, navigator, player)
+            filter == LibraryFilter.Songs -> SongList(state.songs, "Songs", "No songs", pad, navigator, player)
+            filter == LibraryFilter.Favourites ->
+                SongList(state.favourites, "Favourite songs", "Tap the heart on a song to add it here.", pad, navigator, player)
             tiles.isNullOrEmpty() -> EmptyState("Nothing here yet", "Your server has no ${filter.label.lowercase()} to show.")
             grid -> LazyVerticalGrid(
                 columns = GridCells.Adaptive(150.dp),
@@ -166,9 +175,16 @@ fun LibraryScreen(
 }
 
 @Composable
-private fun SongList(songs: List<Song>, pad: androidx.compose.ui.unit.Dp, navigator: AppNavigator, player: PlayerController) {
+private fun SongList(
+    songs: List<Song>,
+    sourceTitle: String,
+    emptyMessage: String,
+    pad: androidx.compose.ui.unit.Dp,
+    navigator: AppNavigator,
+    player: PlayerController,
+) {
     if (songs.isEmpty()) {
-        EmptyState("No songs", null)
+        EmptyState("Nothing here yet", emptyMessage)
         return
     }
     val actions = SongActions(
@@ -179,7 +195,7 @@ private fun SongList(songs: List<Song>, pad: androidx.compose.ui.unit.Dp, naviga
     )
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(top = Dimens.s, bottom = Dimens.xl + LocalFloatingPlayerHeight.current)) {
         itemsIndexed(songs, key = { _, s -> s.id }) { i, song ->
-            SongRow(song, onClick = { player.play(songs, i, PlaybackSource.Songs("Songs")) }, actions = actions, horizontalPadding = pad)
+            SongRow(song, onClick = { player.play(songs, i, PlaybackSource.Songs(sourceTitle)) }, actions = actions, horizontalPadding = pad)
         }
     }
 }

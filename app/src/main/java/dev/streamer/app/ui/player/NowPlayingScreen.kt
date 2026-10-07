@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import dev.streamer.app.model.Song
 import dev.streamer.app.playback.PlayerController
 import dev.streamer.app.playback.PlayerState
+import dev.streamer.app.ui.components.ArtSize
 import dev.streamer.app.ui.components.CoverArt
 import dev.streamer.app.ui.components.EmptyState
 import dev.streamer.app.ui.components.Favorites
@@ -85,7 +86,7 @@ private fun CompactNowPlaying(state: PlayerState, player: PlayerController, favo
                     horizontalArrangement = Arrangement.spacedBy(Dimens.xxl),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    CoverArt(song.artwork, Modifier.fillMaxHeight().aspectRatio(1f), MaterialTheme.shapes.large, "Album artwork")
+                    CoverArt(song.artwork, Modifier.fillMaxHeight().aspectRatio(1f), MaterialTheme.shapes.large, "Album artwork", ArtSize.Large)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Dimens.s)) {
                         TrackTitle(state, favorites)
                         SeekBar(state.position, state.duration, player::seekTo)
@@ -100,6 +101,7 @@ private fun CompactNowPlaying(state: PlayerState, player: PlayerController, favo
                         Modifier.aspectRatio(1f, matchHeightConstraintsFirst = true),
                         MaterialTheme.shapes.large,
                         "Album artwork",
+                            ArtSize.Large,
                     )
                 }
                 TrackTitle(state, favorites, Modifier.fillMaxWidth())
@@ -182,6 +184,7 @@ private fun ExpandedNowPlaying(state: PlayerState, player: PlayerController, fav
                             Modifier.aspectRatio(1f, matchHeightConstraintsFirst = true),
                             MaterialTheme.shapes.large,
                             "Album artwork",
+                            ArtSize.Large,
                         )
                     }
                     TrackTitle(state, favorites, Modifier.fillMaxWidth())

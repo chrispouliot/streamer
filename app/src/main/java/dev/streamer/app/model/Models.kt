@@ -1,12 +1,14 @@
 package dev.streamer.app.model
 
+import java.time.Instant
 import kotlin.time.Duration
 
 /**
- * Artwork reference. [coverArtId] is the server's cover-art ID when one exists;
- * [seed] is a stable key used to derive fallback artwork and tint colours.
+ * Artwork reference. [coverArtId] is the server's cover-art ID when one exists
+ * and [accountId] the account it belongs to; [seed] is a stable key used to
+ * derive fallback artwork and tint colours.
  */
-data class Artwork(val coverArtId: String?, val seed: String)
+data class Artwork(val coverArtId: String?, val seed: String, val accountId: String? = null)
 
 data class Song(
     val id: String,
@@ -19,6 +21,8 @@ data class Song(
     val trackNumber: Int?,
     val artwork: Artwork,
     val explicit: Boolean = false,
+    /** When the user favourited (starred) the song, if known. */
+    val favouritedAt: Instant? = null,
 )
 
 data class AlbumSummary(
@@ -72,6 +76,8 @@ data class SearchResults(
     val albums: List<AlbumSummary> = emptyList(),
     val artists: List<ArtistSummary> = emptyList(),
     val playlists: List<PlaylistSummary> = emptyList(),
+    /** True when the server couldn't be reached and only cached metadata was searched. */
+    val fromCache: Boolean = false,
 ) {
     val isEmpty: Boolean
         get() = songs.isEmpty() && albums.isEmpty() && artists.isEmpty() && playlists.isEmpty()

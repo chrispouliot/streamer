@@ -38,9 +38,9 @@ class DemoPlayerController(
     private var originalOrder: List<Long> = emptyList()
     private var clock: Job? = null
 
-    override fun play(songs: List<Song>, startIndex: Int, source: PlaybackSource?, shuffle: Boolean) {
+    override fun play(songs: List<Song>, startIndex: Int, source: PlaybackSource?, shuffle: Boolean, sourcePositions: List<Int>?) {
         if (songs.isEmpty()) return
-        val items = songs.mapIndexed { i, song -> QueueItem(nextOccurrenceId++, song, sourceIndex = i) }
+        val items = songs.mapIndexed { i, song -> QueueItem(nextOccurrenceId++, song, sourceIndex = sourcePositions?.getOrNull(i) ?: i) }
         originalOrder = items.map { it.occurrenceId }
         val start = if (shuffle && startIndex == 0) random.nextInt(items.size) else startIndex.coerceIn(items.indices)
         val queue = if (shuffle) {

@@ -35,6 +35,7 @@ class AppNavigator(private val nav: NavHostController, private val sheet: Mutabl
     fun openSettings() = navigate(Routes.Settings, singleTop = true)
     fun openDownloads() = navigate(Routes.Downloads, singleTop = true)
     fun openSearch() = selectTopLevel(TopLevel.Search)
+    fun openReconnect() = navigate(Routes.Connect, singleTop = true)
 
     fun openNowPlaying() {
         sheet.value = PlayerSheet.Player

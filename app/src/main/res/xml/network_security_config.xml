@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <!--
+      Cleartext is permitted at the platform level because self-hosted servers
+      are often reached over plain HTTP on Tailscale or a home network, at
+      addresses that can't be listed here. The app itself only sends HTTP to a
+      server the user explicitly allowed (SubsonicClient refuses otherwise) and
+      never downgrades an https:// address. Only system CAs are trusted.
+    -->
+    <base-config cleartextTrafficPermitted="true" tools:ignore="InsecureBaseConfiguration">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

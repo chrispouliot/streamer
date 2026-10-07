@@ -66,8 +66,10 @@ data class HomeUiState(
     val playlists: List<PlaylistSummary> = emptyList(),
     val recentAlbums: List<AlbumSummary> = emptyList(),
     val recentlyPlayed: List<Song> = emptyList(),
+    val favourites: List<Song> = emptyList(),
 ) {
-    val isEmpty: Boolean get() = playlists.isEmpty() && recentAlbums.isEmpty() && recentlyPlayed.isEmpty()
+    val isEmpty: Boolean
+        get() = playlists.isEmpty() && recentAlbums.isEmpty() && recentlyPlayed.isEmpty() && favourites.isEmpty()
 }
 
 class HomeViewModel(library: LibraryRepository) : ViewModel() {
@@ -75,7 +77,8 @@ class HomeViewModel(library: LibraryRepository) : ViewModel() {
         library.playlists,
         library.recentlyAddedAlbums,
         library.recentlyPlayed,
-    ) { playlists, albums, recent -> HomeUiState(true, playlists, albums, recent) }
+        library.starredSongs,
+    ) { playlists, albums, recent, favourites -> HomeUiState(true, playlists, albums, recent, favourites) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 }
 
@@ -129,8 +132,8 @@ fun HomeScreen(state: HomeUiState, navigator: AppNavigator, player: PlayerContro
         if (state.loaded && state.isEmpty) {
             item(key = "empty") {
                 EmptyState(
-                    "Nothing to show yet",
-                    "Connecting to a Navidrome server isn't available in this build yet.",
+                    "Nothing here yet",
+                    "Playlists and recently added albums from your server appear here once they've loaded.",
                 )
             }
         }
@@ -188,6 +191,19 @@ fun HomeScreen(state: HomeUiState, navigator: AppNavigator, player: PlayerContro
                 SongRow(
                     song,
                     onClick = { player.play(state.recentlyPlayed, index, PlaybackSource.Songs("Recently played")) },
+                    actions = songActions,
+                    horizontalPadding = pad,
+                )
+            }
+        }
+        if (state.favourites.isNotEmpty()) {
+            item(key = "favourites-header") {
+                SectionHeader("Favourite songs", Modifier.padding(start = pad, end = pad, top = Dimens.l))
+            }
+            itemsIndexed(state.favourites.take(10), key = { i, s -> "fav-$i-${s.id}" }) { index, song ->
+                SongRow(
+                    song,
+                    onClick = { player.play(state.favourites, index, PlaybackSource.Songs("Favourite songs")) },
                     actions = songActions,
                     horizontalPadding = pad,
                 )
