@@ -4,8 +4,9 @@ Native Kotlin/Jetpack Compose Android player for a Navidrome server
 (Subsonic/OpenSubsonic API). See `PLAN.md` for scope and phase status and
 `AGENTS.md` for the development environment.
 
-Status: Phase 0 complete — a launchable placeholder screen, verified on a phone. No server,
-playback or download functionality exists yet.
+Status: Phase 1 (adaptive UI shell) implemented. Debug builds show a fictional demo
+library and a silent simulated player; release builds show empty states. There is
+no Navidrome connection, real audio playback or downloading yet.
 
 ## Project choices
 
