@@ -21,10 +21,12 @@ object Dimens {
     val miniPlayerArt = 44.dp
     val cardWidth = 168.dp
     val playerPaneWidth = 340.dp
+    /** Gap around the content and player panels on wide windows. */
+    val panelGutter = 8.dp
 
-    /** Must match the shapes used by the mini-player card and pane (shapes.medium / extraLarge). */
+    /** Must match the shapes used by the mini-player card and pane (shapes.medium / large). */
     val miniPlayerCorner = 12.dp
-    val paneCorner = 24.dp
+    val paneCorner = 16.dp
 }
 
 internal val AppShapes = Shapes(

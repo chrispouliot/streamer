@@ -22,6 +22,8 @@ fun widthClassFor(width: Dp): WidthClass = when {
 }
 
 private val RailWidth = 80.dp
+/** Labelled desktop-style sidebar used on expanded windows instead of the rail. */
+val SidebarWidth = 216.dp
 private val MinContentBesidePane = 480.dp
 
 data class ShellLayout(
@@ -29,14 +31,17 @@ data class ShellLayout(
     /** True when a persistent player pane fits beside comfortably wide content. */
     val playerPaneFits: Boolean,
 ) {
+    /** Side navigation (rail or sidebar) instead of the bottom bar. */
     val usesRail: Boolean get() = widthClass != WidthClass.Compact
+    /** The side navigation shows icons with labels beside them. */
+    val usesSidebar: Boolean get() = widthClass == WidthClass.Expanded
     val pagePadding: Dp get() = if (widthClass == WidthClass.Compact) Dimens.pagePaddingCompact else Dimens.pagePaddingWide
 
     companion object {
         fun forWindowWidth(width: Dp): ShellLayout {
             val widthClass = widthClassFor(width)
             val paneFits = widthClass == WidthClass.Expanded &&
-                width - RailWidth - Dimens.playerPaneWidth >= MinContentBesidePane
+                width - SidebarWidth - Dimens.playerPaneWidth >= MinContentBesidePane
             return ShellLayout(widthClass, paneFits)
         }
     }

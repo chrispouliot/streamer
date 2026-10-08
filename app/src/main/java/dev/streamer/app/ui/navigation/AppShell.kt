@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -31,6 +32,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.SnackbarHost
@@ -50,7 +53,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.boundsInRoot
@@ -60,6 +65,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -171,21 +177,34 @@ private fun AppFrame(player: PlayerController) {
         val showBar = !layout.usesRail
         val showRail = layout.usesRail
 
-        // Top is handled per page (see WindowInsets.topBar).
-        var sides: WindowInsetsSides? = null
-        fun add(side: WindowInsetsSides) { sides = sides?.plus(side) ?: side }
-        if (!showRail) add(WindowInsetsSides.Start)
-        if (!showPane) add(WindowInsetsSides.End)
-        if (!showBar) add(WindowInsetsSides.Bottom)
-        val contentInsets = sides?.let { Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(it)) } ?: Modifier
+        // Phones: top is handled per page (see WindowInsets.topBar), and the
+        // bottom by the navigation bar.
+        // Wide windows: the content is a rounded panel inset from the window
+        // like the player pane, so artwork tints end at a deliberate edge and
+        // both panels line up. Padding the insets here consumes them, so pages
+        // inside don't pad for the status bar again.
+        val contentFrame = if (showRail) {
+            // The side navigation pads the start; the pane, when shown, the end.
+            val sides = if (showPane) WindowInsetsSides.Vertical else WindowInsetsSides.Vertical + WindowInsetsSides.End
+            Modifier
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(sides))
+                .padding(top = Dimens.panelGutter, bottom = Dimens.panelGutter, end = Dimens.panelGutter)
+                .clip(MaterialTheme.shapes.large)
+        } else {
+            Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+        }
 
         CompositionLocalProvider(LocalShellLayout provides layout, LocalConnection provides connection) {
             Row(Modifier.fillMaxSize()) {
-                if (showRail) AppRail(selected, { navigator.selectTopLevel(it, reselected = it == selected) }, Modifier.onSizeChanged { railWidthPx = it.width })
-                Column(Modifier.weight(1f)) {
+                if (showRail) {
+                    val onSelect = { item: TopLevel -> navigator.selectTopLevel(item, reselected = item == selected) }
+                    val railModifier = Modifier.onSizeChanged { railWidthPx = it.width }
+                    if (layout.usesSidebar) AppSidebar(selected, onSelect, railModifier) else AppRail(selected, onSelect, railModifier)
+                }
+                Column(Modifier.weight(1f).then(contentFrame)) {
                     // The mini-player floats over the bottom of the content; pages
                     // scroll underneath it and pad their ends by its height.
-                    Box(Modifier.weight(1f).then(contentInsets)) {
+                    Box(Modifier.weight(1f)) {
                         val floatingHeight = if (showMini) with(LocalDensity.current) { miniHeightPx.toDp() } else 0.dp
                         Column(Modifier.fillMaxSize()) {
                             val bannerShown = connection != Connection.Online || reauthReason != null
@@ -340,6 +359,44 @@ private fun AppBottomBar(selected: TopLevel, onSelect: (TopLevel) -> Unit) {
             )
         }
     }
+}
+
+/** Desktop-style labelled sidebar for expanded windows: icon left, label right. */
+@Composable
+private fun AppSidebar(selected: TopLevel, onSelect: (TopLevel) -> Unit, modifier: Modifier = Modifier) {
+    BoxWithConstraints(
+        modifier
+            .width(SidebarWidth)
+            .fillMaxHeight()
+            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Vertical + WindowInsetsSides.Start)),
+    ) {
+        // Short windows: one scrolling column instead of pinning Settings to the bottom.
+        val short = maxHeight < 360.dp
+        Column(
+            Modifier
+                .fillMaxHeight()
+                .then(if (short) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                .padding(horizontal = Dimens.m, vertical = Dimens.panelGutter),
+            verticalArrangement = Arrangement.spacedBy(Dimens.xs),
+        ) {
+            listOf(TopLevel.Home, TopLevel.Search, TopLevel.Library, TopLevel.Downloads).forEach { item ->
+                SidebarItem(item, item == selected, onSelect)
+            }
+            if (!short) Spacer(Modifier.weight(1f))
+            SidebarItem(TopLevel.Settings, selected == TopLevel.Settings, onSelect)
+        }
+    }
+}
+
+@Composable
+private fun SidebarItem(item: TopLevel, selected: Boolean, onSelect: (TopLevel) -> Unit) {
+    NavigationDrawerItem(
+        label = { Text(item.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        icon = { Icon(item.icon, contentDescription = null) },
+        selected = selected,
+        onClick = { onSelect(item) },
+        colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Color.Transparent),
+    )
 }
 
 @Composable

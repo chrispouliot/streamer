@@ -54,7 +54,8 @@ fun PlayerPane(
             .width(Dimens.playerPaneWidth)
             .fillMaxHeight()
             .safeDrawingPadding()
-            .padding(top = Dimens.l, end = Dimens.l, bottom = Dimens.l)
+            // Lines up with the content panel beside it (see AppShell).
+            .padding(top = Dimens.panelGutter, end = Dimens.panelGutter, bottom = Dimens.panelGutter)
             .then(panelModifier),
     )
 }
@@ -71,7 +72,7 @@ fun PlayerPanePanel(
     val song = state.current?.song ?: return
     Surface(
         modifier,
-        shape = MaterialTheme.shapes.extraLarge,
+        shape = MaterialTheme.shapes.large,
         color = MaterialTheme.colorScheme.surfaceContainer,
         contentColor = MaterialTheme.colorScheme.onSurface,
     ) {

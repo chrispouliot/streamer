@@ -7,7 +7,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -48,11 +56,46 @@ class SyncController(private val library: LibraryRepository, private val target:
     }
 }
 
-/** Pull-to-refresh around a screen's scrolling content. */
+/**
+ * Pull-to-refresh around a screen's scrolling content. Only touch drags pull:
+ * a mouse wheel or touchpad scroll has no release or fling, so the indicator
+ * would stop part-way and stay there.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Refreshable(refreshing: Boolean, onRefresh: () -> Unit, modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
-    PullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = modifier, content = content)
+    val wheelFilter = remember { WheelOverscrollFilter() }
+    PullToRefreshBox(isRefreshing = refreshing, onRefresh = onRefresh, modifier = modifier) {
+        Box(
+            Modifier
+                .matchParentSize()
+                .pointerInput(wheelFilter) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            // Initial pass: seen before the list scrolls in response.
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            when (event.type) {
+                                PointerEventType.Scroll -> wheelFilter.wheel = true
+                                PointerEventType.Press -> wheelFilter.wheel = false
+                            }
+                        }
+                    }
+                }
+                .nestedScroll(wheelFilter),
+        ) { content() }
+    }
+}
+
+/**
+ * Sits between the list and the pull-to-refresh box. Parents see post-scroll
+ * after this, so swallowing the overscroll here keeps wheel scrolling from
+ * pulling the indicator; touch scrolling passes through untouched.
+ */
+private class WheelOverscrollFilter : NestedScrollConnection {
+    var wheel = false
+
+    override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset =
+        if (wheel) available else Offset.Zero
 }
 
 /**
