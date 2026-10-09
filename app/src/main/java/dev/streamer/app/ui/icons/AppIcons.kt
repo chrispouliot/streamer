@@ -52,6 +52,7 @@ object AppIcons {
     }
     val ArrowUpward by lazy { icon("ArrowUpward", "M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z") }
     val ArrowDownward by lazy { icon("ArrowDownward", "M20 12l-1.41-1.41L13 16.17V4h-2v12.17l-5.58-5.59L4 12l8 8 8-8z") }
+    val DragHandle by lazy { icon("DragHandle", "M20 9H4v2h16V9zM4 15h16v-2H4v2z") }
     val Sort by lazy { icon("Sort", "M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z") }
     val GraphicEq by lazy {
         icon("GraphicEq", "M7 18h2V6H7v12zm4 4h2V2h-2v20zm-8-8h2v-4H3v4zm12 4h2V6h-2v12zm4-8v4h2v-4h-2z")

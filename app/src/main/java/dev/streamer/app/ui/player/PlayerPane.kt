@@ -1,17 +1,17 @@
 package dev.streamer.app.ui.player
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -28,8 +28,6 @@ import dev.streamer.app.playback.PlayerState
 import dev.streamer.app.ui.components.ArtSize
 import dev.streamer.app.ui.components.CoverArt
 import dev.streamer.app.ui.components.Favorites
-import dev.streamer.app.ui.components.SongLeading
-import dev.streamer.app.ui.components.SongRow
 import dev.streamer.app.ui.icons.AppIcons
 import dev.streamer.app.ui.theme.Dimens
 
@@ -76,29 +74,28 @@ fun PlayerPanePanel(
         color = MaterialTheme.colorScheme.surfaceContainer,
         contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(Dimens.xl)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Now playing", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f).semantics { heading() })
-                IconButton(onClick = onExpand) { Icon(AppIcons.OpenInFull, contentDescription = "Open full player") }
-            }
-            Spacer(Modifier.height(Dimens.s))
-            CoverArt(song.artwork, Modifier.fillMaxWidth().aspectRatio(1f), MaterialTheme.shapes.large, "Album artwork", ArtSize.Large)
-            Spacer(Modifier.height(Dimens.l))
-            TrackTitle(state, favorites, large = false)
-            Spacer(Modifier.height(Dimens.s))
-            SeekBar(state.position, state.duration, player::seekTo)
-            TransportControls(state, player, playSize = 72.dp)
-            val next = state.upNext.take(3)
-            if (next.isNotEmpty()) {
-                Spacer(Modifier.height(Dimens.l))
-                Text("Next up", style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
-                next.forEach { item ->
-                    SongRow(
-                        item.song,
-                        onClick = { player.skipTo(item.occurrenceId) },
-                        leading = SongLeading.Artwork,
-                        horizontalPadding = 0.dp,
-                    )
+        // One scrolling list: player controls first, then the whole queue.
+        QueueList(
+            state,
+            player,
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = Dimens.xl, bottom = Dimens.l),
+            horizontalPadding = Dimens.xl,
+            showCurrent = false,
+        ) {
+            item(key = "pane-player") {
+                Column(Modifier.padding(horizontal = Dimens.xl)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Now playing", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f).semantics { heading() })
+                        IconButton(onClick = onExpand) { Icon(AppIcons.OpenInFull, contentDescription = "Open full player") }
+                    }
+                    Spacer(Modifier.height(Dimens.s))
+                    CoverArt(song.artwork, Modifier.fillMaxWidth().aspectRatio(1f), MaterialTheme.shapes.large, "Album artwork", ArtSize.Large)
+                    Spacer(Modifier.height(Dimens.l))
+                    TrackTitle(state, favorites, large = false)
+                    Spacer(Modifier.height(Dimens.s))
+                    SeekBar(state.position, state.duration, player::seekTo)
+                    TransportControls(state, player, playSize = 72.dp)
                 }
             }
         }

@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -154,7 +153,9 @@ fun HomeScreen(
                         modifier = Modifier.weight(1f).semantics { heading() },
                     )
                     if (wide) {
-                        SearchLauncher(navigator::openSearch, Modifier.widthIn(max = 380.dp).weight(1f, fill = false))
+                        // Fixed width, so it sits at the end of the bar rather than
+                        // taking half of it.
+                        SearchLauncher(navigator::openSearch, Modifier.padding(start = Dimens.l).width(if (layout.usesSidebar) 320.dp else 260.dp))
                     } else {
                         IconButton(onClick = navigator::openSettings) {
                             Icon(Icons.Filled.Settings, contentDescription = "Settings")
