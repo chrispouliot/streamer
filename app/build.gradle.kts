@@ -27,6 +27,10 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            // Personal sideloading: sign with the project-local debug key
+            // (.android-user-home) so release and debug install over each other
+            // and keep app data. Not suitable for distribution.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 

@@ -50,7 +50,14 @@ android-doctor
 android-build                              # debug APK
 android-gradle testDebugUnitTest lintDebug
 android-run --logcat                       # install + launch on a device
+android-run --release                      # non-debuggable release build
 ```
+
+The release build is signed with the same project-local debug key
+(`.android-user-home/.android/debug.keystore`), so release and debug builds
+install over each other and keep app data. Back that keystore up: losing it
+means uninstalling (and losing app data) to update. The debug key is for
+personal sideloading only, not for distribution.
 
 ## Server connection
 

@@ -37,7 +37,17 @@
             name = "android-build";
             runtimeInputs = [ androidGradle ];
             text = ''
-              exec android-gradle assembleDebug "$@"
+              # --release builds the release variant; other arguments go to Gradle.
+              task=assembleDebug
+              args=()
+              for arg in "$@"; do
+                if [[ "$arg" == --release ]]; then
+                  task=assembleRelease
+                else
+                  args+=("$arg")
+                fi
+              done
+              exec android-gradle "$task" "''${args[@]}"
             '';
           };
           androidInstall = pkgs.writeShellApplication {
@@ -47,25 +57,29 @@
               # USB or an already-connected wireless ADB device.
               # Set ANDROID_SERIAL when more than one device is connected.
               launch=1
+              variant=debug
               for arg in "$@"; do
                 case "$arg" in
                   --no-launch) launch=0 ;;
+                  --release) variant=release ;;
                   -h | --help)
-                    echo "Usage: android-install [--no-launch]"
+                    echo "Usage: android-install [--release] [--no-launch]"
                     exit 0
                     ;;
                   *) echo "Unknown argument: $arg" >&2; exit 2 ;;
                 esac
               done
-              apk_dir=app/build/outputs/apk/debug
+              apk_dir=app/build/outputs/apk/$variant
               metadata="$apk_dir/output-metadata.json"
               if [[ ! -f "$metadata" ]]; then
-                echo "No debug APK in $apk_dir; run android-build first." >&2
+                build_cmd=android-build
+                [[ "$variant" == release ]] && build_cmd="android-build --release"
+                echo "No $variant APK in $apk_dir; run $build_cmd first." >&2
                 exit 1
               fi
               # Fail explicitly for split APKs rather than installing only one.
               if [[ "$(jq -r '.elements | length' "$metadata")" != 1 ]]; then
-                echo "Expected one debug APK. Use android-gradle installDebug for split APKs." >&2
+                echo "Expected one $variant APK. Use the android-gradle install task for split APKs." >&2
                 exit 1
               fi
               app_id=$(jq -er '.applicationId | select(length > 0)' "$metadata")
@@ -96,20 +110,23 @@
             runtimeInputs = [ androidBuild androidInstall pkgs.android-tools pkgs.jq pkgs.coreutils ];
             text = ''
               logcat=0
+              variant=debug
+              variant_args=()
               for arg in "$@"; do
                 case "$arg" in
                   --logcat) logcat=1 ;;
+                  --release) variant=release; variant_args=(--release) ;;
                   -h | --help)
-                    echo "Usage: android-run [--logcat]"
+                    echo "Usage: android-run [--release] [--logcat]"
                     exit 0
                     ;;
                   *) echo "Unknown argument: $arg" >&2; exit 2 ;;
                 esac
               done
-              android-build
-              android-install
+              android-build "''${variant_args[@]}"
+              android-install "''${variant_args[@]}"
               if [[ "$logcat" == 1 ]]; then
-                app_id=$(jq -er '.applicationId' app/build/outputs/apk/debug/output-metadata.json)
+                app_id=$(jq -er '.applicationId' "app/build/outputs/apk/$variant/output-metadata.json")
                 pid=$(adb shell pidof -s "$app_id" 2> /dev/null | tr -d '\r' || true)
                 if [[ -z "$pid" ]]; then
                   echo "$app_id is not running; check adb logcat for a startup crash." >&2

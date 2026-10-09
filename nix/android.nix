@@ -66,12 +66,23 @@ let
   buildTools =
     pkgs.runCommand "android-build-tools-${buildToolsVersion}"
       {
-        inherit nativeBuildInputs;
+        nativeBuildInputs = nativeBuildInputs ++ [ pkgs.makeWrapper ];
       }
       ''
         ${unpackOne (archive "build-tools" buildToolsVersion) "$out"}
         ${patchHostTools "$out"}
         patchShebangs "$out"
+        # Google's Java launchers follow symlinks with /bin/ls (absent on
+        # NixOS) and otherwise need coreutils and java from PATH.
+        for tool in apksigner d8; do
+          substituteInPlace "$out/$tool" --replace-fail '`/bin/ls -ld' '`ls -ld'
+          wrapProgram "$out/$tool" --prefix PATH : ${
+            lib.makeBinPath [
+              pkgs.coreutils
+              pkgs.jdk21
+            ]
+          }
+        done
       '';
 
   ndk =

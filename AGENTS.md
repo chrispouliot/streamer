@@ -33,9 +33,9 @@ standalone SDK definition.
 | nixfmt and ShellCheck | Nix formatting and shell checks. |
 | `android-doctor` | Launches Java, ADB, and the wrapped AAPT2 to check tool availability. |
 | `android-gradle` | Runs the project's Gradle wrapper with the AAPT2 override. |
-| `android-build` | Runs `assembleDebug`, passing additional arguments to Gradle. |
-| `android-install` | Installs the debug APK and launches it; accepts `--no-launch`. |
-| `android-run` | Builds, installs, and launches; accepts `--logcat`. |
+| `android-build` | Runs `assembleDebug` (`assembleRelease` with `--release`), passing other arguments to Gradle. |
+| `android-install` | Installs the debug APK and launches it; accepts `--release` and `--no-launch`. |
+| `android-run` | Builds, installs, and launches; accepts `--release` and `--logcat`. |
 
 Kotlin, Compose, and app libraries belong in Gradle. Host FFmpeg and SQLite do
 not add codecs or database libraries to the APK. Select app dependencies when
@@ -122,6 +122,7 @@ android-gradle lintDebug               # Run Android lint
 android-run                           # Build, install, and launch
 android-run --logcat                   # Also follow the running app's log
 android-install --no-launch            # Install the existing APK only
+android-run --release                  # Release build (debug-key signed)
 ```
 
 `android-gradle` requires `./gradlew`. It exports the SDK and JDK paths and
