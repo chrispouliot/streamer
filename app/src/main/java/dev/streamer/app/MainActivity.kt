@@ -2,6 +2,8 @@ package dev.streamer.app
 
 import android.graphics.Color
 import android.os.Bundle
+import android.view.WindowInsetsController.APPEARANCE_LIGHT_CAPTION_BARS
+import android.view.WindowInsetsController.APPEARANCE_TRANSPARENT_CAPTION_BAR_BACKGROUND
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -31,6 +33,15 @@ class MainActivity : ComponentActivity() {
             DisposableEffect(dark) {
                 val style = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark }
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+                // Desktop windowing: draw the app's own background behind the
+                // caption bar (instead of the system's grey header) and pick
+                // window-button colours for it. The caption is part of the
+                // top system-bar insets, so content already stays clear of it.
+                val captionFlags = APPEARANCE_TRANSPARENT_CAPTION_BAR_BACKGROUND or APPEARANCE_LIGHT_CAPTION_BARS
+                window.insetsController?.setSystemBarsAppearance(
+                    APPEARANCE_TRANSPARENT_CAPTION_BAR_BACKGROUND or if (dark) 0 else APPEARANCE_LIGHT_CAPTION_BARS,
+                    captionFlags,
+                )
                 onDispose {}
             }
             StreamerTheme(darkTheme = dark) {
