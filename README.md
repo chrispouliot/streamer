@@ -1,46 +1,7 @@
 # Streamer
 
 Native Kotlin/Jetpack Compose Android player for a Navidrome server
-(Subsonic/OpenSubsonic API). See `PLAN.md` for scope and phase status and
-`AGENTS.md` for the development environment.
-
-Status: Phase 5 (downloads and offline playback) implemented, pending device
-verification. The app signs in to a Navidrome server, caches the library, streams
-through a Media3 player service, and downloads songs, albums and playlists
-(original files) for offline playback, with optional per-playlist Keep updated.
-
-## Project choices
-
-| Setting | Value | Notes |
-|---|---|---|
-| App name | Streamer | Provisional; not approved branding. |
-| Application ID / namespace | `dev.streamer.app` | Provisional; changing it after release breaks upgrades. |
-| `minSdk` | 36 (Android 16) | |
-| `compileSdk` / `targetSdk` | 37 (Android 17, platform `37.0`) | Current AndroidX releases require compileSdk ≥ 37. |
-| Build tools | 37.0.0 | Pinned in `app/build.gradle.kts`; must match `nix/android.nix`. |
-| Modules | single `:app` | Organized by package; split only when justified. |
-
-## Toolchain versions
-
-All library/plugin versions live in `gradle/libs.versions.toml`.
-
-| Tool | Version |
-|---|---|
-| Gradle (wrapper, checksum-verified) | 9.8.0 |
-| Android Gradle Plugin | 9.4.1 (built-in Kotlin support) |
-| Kotlin / Compose compiler plugin | 2.4.20 |
-| Compose BOM | 2026.09.00 |
-| OkHttp | 5.5.0 |
-| Room (KSP 2.3.12) | 2.8.5 — schema in `app/schemas`, commit it |
-| Coil | 3.6.3 |
-| Media3 (ExoPlayer, session, OkHttp data source, downloads) | 1.11.1 |
-| WorkManager | 2.12.0 |
-| Palette | 1.0.0 |
-| JDK (from Nix shell) | 21; bytecode target 17 |
-
-Gradle is not installed by Nix: `./gradlew` downloads the pinned distribution
-into `$GRADLE_USER_HOME`. The Android SDK is read-only in the Nix store, so
-SDK components must be added in `nix/android.nix`, never via `sdkmanager`.
+(Subsonic/OpenSubsonic API). Material Design 3 and works on both Phone/Tablet and Googlebook desktop mode
 
 ## Build
 
@@ -54,7 +15,7 @@ android-run --release                      # non-debuggable release build
 ```
 
 The release build is signed with the same project-local debug key
-(`.android-user-home/.android/debug.keystore`), so release and debug builds
+(`.android-user-home/debug.keystore`), so release and debug builds
 install over each other and keep app data. Back that keystore up: losing it
 means uninstalling (and losing app data) to update. The debug key is for
 personal sideloading only, not for distribution.
